@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,14 +12,19 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppIcon, Icons } from '@/components/app-icon';
+import { VoiceAssistantButton } from '@/components/onboarding/voice-assistant-button';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { useVoice } from '@/providers/voice-provider';
+import type { VoicePromptKey } from '@/types/voice';
 
 const DEFAULT_TOTAL_STEPS = 5;
 
 type OnboardingShellProps = {
   step: number;
   totalSteps?: number;
+  voiceKey?: VoicePromptKey | string;
+  autoPlayVoice?: boolean;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -31,6 +36,8 @@ type OnboardingShellProps = {
 export function OnboardingShell({
   step,
   totalSteps = DEFAULT_TOTAL_STEPS,
+  voiceKey,
+  autoPlayVoice = true,
   eyebrow,
   title,
   subtitle,
@@ -39,6 +46,20 @@ export function OnboardingShell({
   onBack,
 }: OnboardingShellProps) {
   const { t } = useI18n();
+  const { speak, stop } = useVoice();
+
+  useEffect(() => {
+    if (!voiceKey || autoPlayVoice === false) return;
+
+    const timer = setTimeout(() => {
+      speak(voiceKey);
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+  }, [voiceKey, autoPlayVoice, speak, stop]);
 
   return (
     <View style={styles.screen}>
@@ -71,9 +92,15 @@ export function OnboardingShell({
                 </View>
               )}
 
-              <Text style={styles.stepText} allowFontScaling={false}>
-                {t('common.step', { current: step, total: totalSteps })}
-              </Text>
+              <View style={styles.topBarRight}>
+                {voiceKey ? (
+                  <VoiceAssistantButton voiceKey={voiceKey} />
+                ) : null}
+
+                <Text style={styles.stepText} allowFontScaling={false}>
+                  {t('common.step', { current: step, total: totalSteps })}
+                </Text>
+              </View>
             </View>
 
             <View
@@ -216,6 +243,11 @@ const styles = StyleSheet.create({
     fontSize: 23,
     fontWeight: '800',
     letterSpacing: -1,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   stepText: {
     color: Brand.inkMuted,

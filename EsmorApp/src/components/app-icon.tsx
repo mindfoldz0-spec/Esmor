@@ -50,4 +50,6 @@ export const Icons = {
   help: { ios: 'questionmark.circle', android: 'help', web: 'help' },
   arrowRight: { ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' },
   warning: { ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' },
+  speaker: { ios: 'speaker.wave.2.fill', android: 'volume_up', web: 'volume_up' },
+  speakerMute: { ios: 'speaker.slash.fill', android: 'volume_off', web: 'volume_off' },
 } satisfies Record<string, SymbolViewProps['name']>;

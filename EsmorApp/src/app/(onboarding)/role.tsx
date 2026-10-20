@@ -20,6 +20,7 @@ import { Brand } from '@/constants/theme';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { useOnboarding } from '@/providers/onboarding-provider';
+import { useVoice } from '@/providers/voice-provider';
 import type { UserRole } from '@/types/profile';
 
 type ProducerRole = Exclude<UserRole, 'consumer'>;
@@ -67,6 +68,7 @@ export default function RoleScreen() {
   const { t, language } = useI18n();
   const { form, updateForm } = useOnboarding();
   const { completeOnboarding } = useAppData();
+  const { speak } = useVoice();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +84,13 @@ export default function RoleScreen() {
   const handleSelect = (role: ProducerRole) => {
     updateForm({ role });
     setError(null);
+    const feedbackKey =
+      role === 'farmer'
+        ? 'role.select_farmer'
+        : role === 'kirana'
+          ? 'role.select_kirana'
+          : 'role.select_entrepreneur';
+    speak(feedbackKey);
   };
 
   const handleFinish = async () => {
@@ -120,6 +129,7 @@ export default function RoleScreen() {
         language,
         location: form.location,
       });
+      speak('profile.completed');
     } catch (cause) {
       console.warn('Could not save the profile.', cause);
       setSaving(false);
@@ -133,6 +143,7 @@ export default function RoleScreen() {
     <OnboardingShell
       step={6}
       totalSteps={6}
+      voiceKey="role.intro"
       eyebrow={t('role.eyebrow')}
       title={t('role.title')}
       subtitle={t('role.subtitle')}

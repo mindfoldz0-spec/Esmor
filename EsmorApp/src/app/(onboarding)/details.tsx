@@ -69,6 +69,7 @@ export default function DetailsScreen() {
   return (
     <OnboardingShell
       step={2}
+      voiceKey="details.intro"
       eyebrow={t('details.eyebrow')}
       title={t('details.title')}
       subtitle={t('details.subtitle')}

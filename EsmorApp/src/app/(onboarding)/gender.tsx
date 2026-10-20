@@ -20,6 +20,7 @@ import { PrimaryButton } from '@/components/onboarding/primary-button';
 import { Brand } from '@/constants/theme';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useOnboarding } from '@/providers/onboarding-provider';
+import { useVoice } from '@/providers/voice-provider';
 import type { Gender } from '@/types/profile';
 
 const GENDER_OPTIONS: {
@@ -36,6 +37,7 @@ export default function GenderScreen() {
   const { width } = useWindowDimensions();
   const { t } = useI18n();
   const { form, updateForm } = useOnboarding();
+  const { speak } = useVoice();
   const [error, setError] = useState<string | null>(null);
 
   const viewportWidth = Math.min(width, 640);
@@ -54,6 +56,7 @@ export default function GenderScreen() {
   const handleSelect = (gender: Gender) => {
     updateForm({ gender });
     setError(null);
+    speak(gender === 'female' ? 'gender.select_female' : 'gender.select_male');
   };
 
   const handleContinue = () => {
@@ -69,6 +72,7 @@ export default function GenderScreen() {
   return (
     <OnboardingShell
       step={4}
+      voiceKey="gender.intro"
       eyebrow={t('gender.eyebrow')}
       title={t('gender.title')}
       subtitle={t('gender.subtitle')}

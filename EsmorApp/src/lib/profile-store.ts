@@ -12,7 +12,7 @@ import {
 } from '@/types/profile';
 
 const DATABASE_NAME = 'esmor.db';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 type ProfileRow = {
   name: string;
@@ -75,6 +75,18 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     }
   }
 
+  // Version 4: Voice prompt cache for text-to-speech audio
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS voice_cache (
+      id TEXT PRIMARY KEY NOT NULL,
+      voice_key TEXT NOT NULL,
+      language TEXT NOT NULL,
+      text TEXT,
+      audio_base64 TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
 
@@ -85,7 +97,7 @@ function openDatabase() {
   });
 }
 
-function getDatabase() {
+export function getDatabase() {
   databasePromise ??= openDatabase();
   return databasePromise;
 }

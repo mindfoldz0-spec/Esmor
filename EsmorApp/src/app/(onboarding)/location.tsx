@@ -17,6 +17,7 @@ import { TextField } from '@/components/onboarding/text-field';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { useOnboarding } from '@/providers/onboarding-provider';
+import { useVoice } from '@/providers/voice-provider';
 import type { LocationSource, ProfileLocation } from '@/types/profile';
 
 const LOCATION_BANNER = require('@/assets/images/location-banner.jpg');
@@ -47,6 +48,7 @@ export default function LocationScreen() {
   const router = useRouter();
   const { t } = useI18n();
   const { form, updateForm } = useOnboarding();
+  const { speak } = useVoice();
   const existingLocation = form.location;
 
   const [mode, setMode] = useState<LocationSource | null>(
@@ -119,6 +121,7 @@ export default function LocationScreen() {
 
       setGpsLocation(nextLocation);
       setMode('gps');
+      speak('location.gps_success');
     } catch (cause) {
       console.warn('Could not resolve the current location.', cause);
       setError(t('location.error'));
@@ -170,6 +173,7 @@ export default function LocationScreen() {
   return (
     <OnboardingShell
       step={3}
+      voiceKey="location.intro"
       eyebrow={t('location.eyebrow')}
       title={t('location.title')}
       subtitle={t('location.subtitle')}

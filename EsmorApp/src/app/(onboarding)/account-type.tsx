@@ -20,6 +20,7 @@ import { Brand } from '@/constants/theme';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { useOnboarding } from '@/providers/onboarding-provider';
+import { useVoice } from '@/providers/voice-provider';
 import type { UserCategory } from '@/types/profile';
 
 const CATEGORY_IMAGES: Record<UserCategory, ImageSource> = {
@@ -57,6 +58,7 @@ export default function AccountTypeScreen() {
   const { t, language } = useI18n();
   const { form, updateForm } = useOnboarding();
   const { completeOnboarding } = useAppData();
+  const { speak } = useVoice();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +76,11 @@ export default function AccountTypeScreen() {
   const handleSelect = (category: UserCategory) => {
     updateForm({ category });
     setError(null);
+    speak(
+      category === 'consumer'
+        ? 'account_type.select_consumer'
+        : 'account_type.select_producer'
+    );
   };
 
   const handleAction = async () => {
@@ -118,6 +125,7 @@ export default function AccountTypeScreen() {
         language,
         location: form.location,
       });
+      speak('profile.completed');
     } catch (cause) {
       console.warn('Could not save the consumer profile.', cause);
       setSaving(false);
@@ -138,6 +146,7 @@ export default function AccountTypeScreen() {
     <OnboardingShell
       step={5}
       totalSteps={selectedCategory === 'producer' ? 6 : 5}
+      voiceKey="account_type.intro"
       eyebrow={t('accountType.eyebrow')}
       title={t('accountType.title')}
       subtitle={t('accountType.subtitle')}

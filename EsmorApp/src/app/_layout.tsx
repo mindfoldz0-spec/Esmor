@@ -12,6 +12,7 @@ import {
   NotificationProvider,
   useNotifications,
 } from '@/providers/notification-provider';
+import { VoiceProvider } from '@/providers/voice-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -72,16 +73,18 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <LanguageProvider>
-      <AppDataProvider>
-        <NotificationProvider>
-          <ThemeProvider value={DefaultTheme}>
-            <AnimatedSplashOverlay />
-            <StatusBar style="dark" />
-            <NotificationRouteListener />
-            <RootNavigator />
-          </ThemeProvider>
-        </NotificationProvider>
-      </AppDataProvider>
+      <VoiceProvider>
+        <AppDataProvider>
+          <NotificationProvider>
+            <ThemeProvider value={DefaultTheme}>
+              <AnimatedSplashOverlay />
+              <StatusBar style="dark" />
+              <NotificationRouteListener />
+              <RootNavigator />
+            </ThemeProvider>
+          </NotificationProvider>
+        </AppDataProvider>
+      </VoiceProvider>
     </LanguageProvider>
   );
 }

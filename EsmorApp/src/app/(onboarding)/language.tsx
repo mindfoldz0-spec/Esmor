@@ -7,17 +7,32 @@ import { PrimaryButton } from '@/components/onboarding/primary-button';
 import { Brand } from '@/constants/theme';
 import { LANGUAGES, useI18n, type Language } from '@/i18n';
 
+import { useVoice } from '@/providers/voice-provider';
+
 export default function LanguageScreen() {
   const router = useRouter();
   const { language, setLanguage, t } = useI18n();
+  const { speak } = useVoice();
 
   const handleContinue = () => {
     router.push('/details');
   };
 
+  const handleSelectLanguage = (code: Language) => {
+    setLanguage(code);
+    const feedbackKey =
+      code === 'mr'
+        ? 'language.select_mr'
+        : code === 'hi'
+          ? 'language.select_hi'
+          : 'language.select_en';
+    speak(feedbackKey, { language: code });
+  };
+
   return (
     <OnboardingShell
       step={1}
+      voiceKey="language.intro"
       eyebrow={t('language.eyebrow')}
       title={t('language.title')}
       subtitle={t('language.subtitle')}
@@ -35,7 +50,7 @@ export default function LanguageScreen() {
               nativeName={option.nativeName}
               tile={option.tile}
               selected={selected}
-              onPress={() => setLanguage(option.code)}
+              onPress={() => handleSelectLanguage(option.code)}
             />
           );
         })}
