@@ -52,4 +52,7 @@ export const Icons = {
   warning: { ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' },
   speaker: { ios: 'speaker.wave.2.fill', android: 'volume_up', web: 'volume_up' },
   speakerMute: { ios: 'speaker.slash.fill', android: 'volume_off', web: 'volume_off' },
+  mic: { ios: 'mic.fill', android: 'mic', web: 'mic' },
+  micOff: { ios: 'mic.slash.fill', android: 'mic_off', web: 'mic_off' },
+  stop: { ios: 'stop.fill', android: 'stop', web: 'stop' },
 } satisfies Record<string, SymbolViewProps['name']>;

@@ -18,7 +18,8 @@ import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { askListingAgent } from '@/lib/groq-agent-service';
 import { addMarketplaceProduct } from '@/lib/marketplace-store';
-import { speakPrompt } from '@/lib/voice-player';
+import { SpeechToTextController } from '@/lib/stt-service';
+import { speakPrompt, stopVoice } from '@/lib/voice-player';
 import type { AgentChatMessage, ListingDraft, MarketplaceProduct, ProductCategory } from '@/types/marketplace';
 import type { Profile } from '@/types/profile';
 
@@ -97,11 +98,66 @@ function AgenticListingContent({
   });
 
   const scrollRef = useRef<ScrollView>(null);
+  const sttControllerRef = useRef<SpeechToTextController | null>(null);
+
+  const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [liveSpokenText, setLiveSpokenText] = useState('');
+
+  // Setup STT controller
+  useEffect(() => {
+    const controller = new SpeechToTextController();
+    sttControllerRef.current = controller;
+    return () => {
+      controller.cancel();
+    };
+  }, []);
 
   // Play spoken greeting when agent mounts
   useEffect(() => {
     speakPrompt('agent_welcome', language, getInitialGreeting(language)).catch(() => {});
   }, [language]);
+
+  const handleToggleListening = async () => {
+    if (isProcessing || isPublishing || isTranscribing) return;
+
+    if (isListening) {
+      setIsListening(false);
+      setIsTranscribing(true);
+      try {
+        const transcript = await sttControllerRef.current?.stopListening(language);
+        setIsTranscribing(false);
+        const finalText = (transcript || liveSpokenText || '').trim();
+        setLiveSpokenText('');
+        if (finalText) {
+          await handleSendMessage(finalText);
+        } else {
+          setInputText(
+            language === 'mr'
+              ? 'आवाज ऐकू आला नाही. कृपया पुन्हा बोला किंवा पर्याय निवडा.'
+              : 'Could not hear voice. Please speak again or select an option.'
+          );
+        }
+      } catch (err) {
+        setIsTranscribing(false);
+        console.warn('STT stop listening error:', err);
+      }
+    } else {
+      await stopVoice();
+      setLiveSpokenText('');
+      setInputText('');
+      const started = await sttControllerRef.current?.startListening(
+        language,
+        (liveText) => {
+          setLiveSpokenText(liveText);
+          setInputText(liveText);
+        }
+      );
+      if (started) {
+        setIsListening(true);
+      }
+    }
+  };
 
   const handleSendMessage = async (textToSend: string) => {
     const text = textToSend.trim();
@@ -243,6 +299,44 @@ function AgenticListingContent({
             ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.chatContent}>
+            {/* Prominent Hero Voice Mic Section for Producer */}
+            <View style={styles.heroVoiceSection}>
+              <Pressable
+                onPress={handleToggleListening}
+                style={[
+                  styles.heroMicBtn,
+                  isListening && styles.heroMicBtnListening,
+                  isTranscribing && styles.heroMicBtnTranscribing,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={isListening ? 'Stop recording' : 'Start speaking'}>
+                {isTranscribing ? (
+                  <ActivityIndicator size="small" color={Brand.surface} />
+                ) : (
+                  <AppIcon
+                    name={isListening ? Icons.stop : Icons.mic}
+                    size={28}
+                    color={Brand.surface}
+                  />
+                )}
+              </Pressable>
+
+              <View style={styles.heroVoiceInfo}>
+                <Text style={styles.heroVoiceTitle}>
+                  {isListening
+                    ? (language === 'mr' ? '🔴 ऐकत आहे... आता बोला' : '🔴 Listening... speak now')
+                    : isTranscribing
+                      ? (language === 'mr' ? '⏳ AI आवाज ओळखत आहे...' : '⏳ AI is transcribing...')
+                      : (language === 'mr' ? 'माईक दाबा आणि बोला' : 'Tap Mic & Speak to Sell')}
+                </Text>
+                <Text style={styles.heroVoiceSub} numberOfLines={2}>
+                  {isListening
+                    ? (liveSpokenText ? `"${liveSpokenText}"` : (language === 'mr' ? 'बोलून झाल्यावर पुन्हा माईकवर टॅप करा' : 'Speak now (tap again when finished)'))
+                    : (language === 'mr' ? 'उदा. "मला १० क्रेट टोमॅटो विकायचे आहेत"' : 'e.g. "I want to sell 10 crates of tomatoes"')}
+                </Text>
+              </View>
+            </View>
+
             {messages.map((msg) => (
               <View
                 key={msg.id}
@@ -366,40 +460,48 @@ function AgenticListingContent({
           </ScrollView>
 
           {/* Bottom Conversational Voice/Text Input Bar */}
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, isListening && styles.inputContainerListening]}>
             <TextInput
               value={inputText}
               onChangeText={setInputText}
               placeholder={
-                language === 'mr'
-                  ? 'येथे लिहा किंवा बोला...'
-                  : 'Type or speak your reply...'
+                isListening
+                  ? (language === 'mr' ? 'तुमचा आवाज ऐकत आहे...' : 'Listening to speech...')
+                  : (language === 'mr' ? 'येथे लिहा किंवा माईक दाबा...' : 'Type or tap mic to speak...')
               }
-              placeholderTextColor={Brand.inkFaint}
+              placeholderTextColor={isListening ? Brand.danger : Brand.inkFaint}
               onSubmitEditing={() => handleSendMessage(inputText)}
               returnKeyType="send"
               style={styles.inputField}
+              editable={!isTranscribing}
             />
 
             <Pressable
               style={[
                 styles.micSendBtn,
-                Boolean(inputText.trim()) && styles.sendBtnActive,
+                isListening && styles.micBtnListening,
+                Boolean(inputText.trim()) && !isListening && styles.sendBtnActive,
               ]}
               onPress={() => {
-                if (inputText.trim()) {
+                if (isListening) {
+                  handleToggleListening();
+                } else if (inputText.trim()) {
                   handleSendMessage(inputText);
                 } else {
-                  handleSendMessage('जे बाजारात योग्य वाटेल तो भाव ठेवा');
+                  handleToggleListening();
                 }
               }}
               accessibilityRole="button"
-              accessibilityLabel={inputText.trim() ? 'Send message' : 'Speak or suggest price'}>
-              <AppIcon
-                name={inputText.trim() ? Icons.check : Icons.sparkle}
-                size={18}
-                color={Brand.surface}
-              />
+              accessibilityLabel={isListening ? 'Stop' : inputText.trim() ? 'Send' : 'Speak'}>
+              {isTranscribing ? (
+                <ActivityIndicator size="small" color={Brand.surface} />
+              ) : (
+                <AppIcon
+                  name={isListening ? Icons.stop : inputText.trim() ? Icons.check : Icons.mic}
+                  size={18}
+                  color={Brand.surface}
+                />
+              )}
             </Pressable>
           </View>
         </View>
@@ -678,5 +780,58 @@ const styles = StyleSheet.create({
   },
   sendBtnActive: {
     backgroundColor: Brand.ink,
+  },
+  heroVoiceSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Brand.surfaceMuted,
+    borderRadius: 20,
+    padding: 14,
+    gap: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  heroMicBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroMicBtnListening: {
+    backgroundColor: Brand.danger,
+    borderWidth: 3,
+    borderColor: Brand.dangerSoft,
+  },
+  heroMicBtnTranscribing: {
+    backgroundColor: Brand.ink,
+  },
+  heroVoiceInfo: {
+    flex: 1,
+  },
+  heroVoiceTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Brand.ink,
+  },
+  heroVoiceSub: {
+    fontSize: 12,
+    color: Brand.inkMuted,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  inputContainerListening: {
+    backgroundColor: Brand.dangerSoft,
+    borderTopColor: Brand.danger,
+  },
+  micBtnListening: {
+    backgroundColor: Brand.danger,
   },
 });

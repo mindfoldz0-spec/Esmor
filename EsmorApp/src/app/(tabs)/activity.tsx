@@ -151,7 +151,7 @@ export default function MarketplaceScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="List new product with AI voice agent">
                 <View style={styles.micIconCircle}>
-                  <AppIcon name={Icons.sparkle} size={13} color={Brand.surface} />
+                  <AppIcon name={Icons.mic} size={13} color={Brand.surface} />
                 </View>
                 <Text style={styles.agenticListBtnText}>
                   {language === 'mr' ? '+ विक्री करा' : language === 'hi' ? '+ बेचें' : '+ Sell'}
