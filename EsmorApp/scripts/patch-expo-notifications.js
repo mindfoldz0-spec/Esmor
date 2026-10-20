@@ -1,21 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const target = path.join(
-  __dirname,
-  '..',
-  'node_modules',
-  'expo-notifications',
-  'build',
-  'TopicSubscriptionModule.android.js'
-);
+const targets = [
+  path.join(__dirname, '..', 'node_modules', 'expo-notifications', 'build', 'TopicSubscriptionModule.android.js'),
+  path.join(__dirname, '..', 'node_modules', 'expo-notifications', 'src', 'TopicSubscriptionModule.android.ts'),
+];
 
-if (fs.existsSync(target)) {
-  const content = fs.readFileSync(target, 'utf8');
-  if (content.includes("export default requireNativeModule('ExpoTopicSubscriptionModule');")) {
-    const patched = content.replace(
-      "export default requireNativeModule('ExpoTopicSubscriptionModule');",
-      `let mod;
+const fallback = `let mod;
 try {
   mod = requireNativeModule('ExpoTopicSubscriptionModule');
 } catch {
@@ -26,9 +17,19 @@ try {
     unsubscribeFromTopicAsync: () => Promise.resolve(null),
   };
 }
-export default mod;`
-    );
-    fs.writeFileSync(target, patched, 'utf8');
-    console.log('[patch-expo-notifications] Successfully patched TopicSubscriptionModule.android.js for Expo Go');
+export default mod;`;
+
+targets.forEach((target) => {
+  if (fs.existsSync(target)) {
+    let content = fs.readFileSync(target, 'utf8');
+    if (content.includes("export default requireNativeModule('ExpoTopicSubscriptionModule');")) {
+      content = content.replace("export default requireNativeModule('ExpoTopicSubscriptionModule');", fallback);
+      fs.writeFileSync(target, content, 'utf8');
+      console.log(`[patch-expo-notifications] Patched ${path.basename(target)}`);
+    } else if (content.includes("export default requireNativeModule<TopicSubscriptionModule>('ExpoTopicSubscriptionModule');")) {
+      content = content.replace("export default requireNativeModule<TopicSubscriptionModule>('ExpoTopicSubscriptionModule');", fallback);
+      fs.writeFileSync(target, content, 'utf8');
+      console.log(`[patch-expo-notifications] Patched ${path.basename(target)}`);
+    }
   }
-}
+});
