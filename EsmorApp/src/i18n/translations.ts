@@ -158,7 +158,7 @@ const en = {
 
   'tabs.home': 'Home',
   'tabs.explore': 'Transport',
-  'tabs.activity': 'Activity',
+  'tabs.activity': 'Market',
   'a11y.tab': '{label} tab',
 
   'search.placeholder': 'Search anything',
@@ -460,7 +460,7 @@ const hi: TranslationDictionary = {
 
   'tabs.home': 'होम',
   'tabs.explore': 'वाहन सेवा',
-  'tabs.activity': 'गतिविधि',
+  'tabs.activity': 'बाजार',
   'a11y.tab': '{label} टैब',
 
   'search.placeholder': 'कुछ भी खोजें',
@@ -756,7 +756,7 @@ const mr: TranslationDictionary = {
 
   'tabs.home': 'होम',
   'tabs.explore': 'वाहतूक',
-  'tabs.activity': 'ॲक्टिव्हिटी',
+  'tabs.activity': 'बाजारपेठ',
   'a11y.tab': '{label} टॅब',
 
   'search.placeholder': 'काहीही शोधा',

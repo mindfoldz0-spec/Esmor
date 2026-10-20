@@ -68,6 +68,38 @@ export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps
         </View>
       </Pressable>
 
+      {/* Featured Rural Marketplace Banner */}
+      <Pressable
+        style={styles.marketplaceBanner}
+        onPress={() => router.push('/(tabs)/activity')}
+        accessibilityRole="button"
+        accessibilityLabel="Open Rural Marketplace">
+        <View style={styles.transportBannerLeft}>
+          <View style={styles.marketBadge}>
+            <Text style={styles.marketBadgeText}>
+              {language === 'mr' ? 'AI बाजारपेठ' : language === 'hi' ? 'AI बाजार' : 'Voice Market'}
+            </Text>
+          </View>
+          <Text style={styles.transportBannerTitle}>
+            {language === 'mr'
+              ? 'ग्रामीण बाजारपेठ (Rural Marketplace)'
+              : language === 'hi'
+                ? 'ग्रामीण बाजार (Rural Marketplace)'
+                : 'Rural Marketplace (Voice AI)'}
+          </Text>
+          <Text style={styles.transportBannerDesc}>
+            {language === 'mr'
+              ? 'बोलून उत्पादन जोडा किंवा शेतकऱ्यांकडून थेट ताजी उत्पादने खरेदी करा.'
+              : language === 'hi'
+                ? 'बोलकर उत्पाद जोड़ें या सीधे किसानों से ताजा सामान खरीदें।'
+                : 'List items by speaking with AI or buy directly from local farmers.'}
+          </Text>
+        </View>
+        <View style={styles.marketBannerRight}>
+          <Text style={styles.transportIcon}>🛍️</Text>
+        </View>
+      </Pressable>
+
       <View style={styles.featureList}>
         {features.map((feature) => (
           <View
@@ -326,5 +358,42 @@ const styles = StyleSheet.create({
   },
   transportIcon: {
     fontSize: 24,
+  },
+  marketplaceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: '#7C3AED',
+    shadowColor: '#7C3AED',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  marketBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  marketBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6D28D9',
+    textTransform: 'uppercase',
+  },
+  marketBannerRight: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
