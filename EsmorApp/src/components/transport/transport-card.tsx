@@ -10,6 +10,7 @@ import type { TransportRide } from '@/types/transport';
 type TransportCardProps = {
   ride: TransportRide;
   onBookPress: (ride: TransportRide) => void;
+  onTrackPress?: (ride: TransportRide) => void;
 };
 
 const VEHICLE_LABELS: Record<string, { en: string; hi: string; mr: string; icon: string }> = {
@@ -28,7 +29,7 @@ function formatDisplayTime(timeStr: string): string {
   return timeStr.trim();
 }
 
-export function TransportCard({ ride, onBookPress }: TransportCardProps) {
+export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCardProps) {
   const { language } = useI18n();
   const [speakingThis, setSpeakingThis] = useState(false);
 
@@ -71,20 +72,46 @@ export function TransportCard({ ride, onBookPress }: TransportCardProps) {
           </Text>
         </View>
 
-        <Pressable
-          style={[styles.listenBtn, speakingThis && styles.listenBtnActive]}
-          onPress={handleSpeak}
-          accessibilityRole="button"
-          accessibilityLabel="Listen ride details">
-          <AppIcon
-            name={Icons.sparkle}
-            size={14}
-            color={speakingThis ? Brand.surface : Brand.accentInk}
-          />
-          <Text style={[styles.listenBtnText, speakingThis && styles.listenBtnTextActive]}>
-            {language === 'mr' ? 'ऐका' : language === 'hi' ? 'सुनें' : 'Listen'}
-          </Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          {ride.mandiCategory && (
+            <View
+              style={[
+                styles.categoryBadge,
+                ride.mandiCategory === 'nearby' && styles.categoryNearby,
+                ride.mandiCategory === 'regional' && styles.categoryRegional,
+                ride.mandiCategory === 'terminal' && styles.categoryTerminal,
+              ]}>
+              <Text
+                style={[
+                  styles.categoryText,
+                  ride.mandiCategory === 'nearby' && styles.categoryTextNearby,
+                  ride.mandiCategory === 'regional' && styles.categoryTextRegional,
+                  ride.mandiCategory === 'terminal' && styles.categoryTextTerminal,
+                ]}>
+                {ride.mandiCategory === 'nearby'
+                  ? language === 'mr' ? 'जवळची मंडी' : 'Nearby'
+                  : ride.mandiCategory === 'regional'
+                    ? language === 'mr' ? 'जिल्हा मंडी' : 'Regional'
+                    : language === 'mr' ? 'मोठी मंडी' : 'Terminal'}
+              </Text>
+            </View>
+          )}
+
+          <Pressable
+            style={[styles.listenBtn, speakingThis && styles.listenBtnActive]}
+            onPress={handleSpeak}
+            accessibilityRole="button"
+            accessibilityLabel="Listen ride details">
+            <AppIcon
+              name={Icons.sparkle}
+              size={14}
+              color={speakingThis ? Brand.surface : Brand.accentInk}
+            />
+            <Text style={[styles.listenBtnText, speakingThis && styles.listenBtnTextActive]}>
+              {language === 'mr' ? 'ऐका' : language === 'hi' ? 'सुनें' : 'Listen'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Origin -> Destination Route */}
@@ -180,18 +207,31 @@ export function TransportCard({ ride, onBookPress }: TransportCardProps) {
         </Text>
       </View>
 
-      {/* Bottom Actions: Call Driver + Book Space */}
+      {/* Bottom Actions: Call Driver + Track Vehicle + Book Space */}
       <View style={styles.actionRow}>
         <Pressable
           style={styles.callBtn}
           onPress={handleCall}
           accessibilityRole="button"
           accessibilityLabel="Call driver">
-          <AppIcon name={Icons.phone} size={16} color={Brand.ink} />
+          <AppIcon name={Icons.phone} size={15} color={Brand.ink} />
           <Text style={styles.callBtnText}>
-            {language === 'mr' ? 'फोन करा' : language === 'hi' ? 'कॉल करें' : 'Call'}
+            {language === 'mr' ? 'कॉल' : language === 'hi' ? 'कॉल' : 'Call'}
           </Text>
         </Pressable>
+
+        {onTrackPress && (
+          <Pressable
+            style={styles.trackBtn}
+            onPress={() => onTrackPress(ride)}
+            accessibilityRole="button"
+            accessibilityLabel="Track vehicle live">
+            <AppIcon name={Icons.location} size={15} color={Brand.surface} />
+            <Text style={styles.trackBtnText}>
+              {language === 'mr' ? 'थेट ट्रॅक' : language === 'hi' ? 'लाइव ट्रैक' : 'Track'}
+            </Text>
+          </Pressable>
+        )}
 
         <Pressable
           style={styles.bookBtn}
@@ -230,6 +270,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  categoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  categoryNearby: {
+    backgroundColor: '#DEF7EC',
+  },
+  categoryRegional: {
+    backgroundColor: '#FEF08A',
+  },
+  categoryTerminal: {
+    backgroundColor: '#E0E7FF',
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  categoryTextNearby: {
+    color: '#03543F',
+  },
+  categoryTextRegional: {
+    color: '#854D0E',
+  },
+  categoryTextTerminal: {
+    color: '#3730A3',
   },
   vehicleBadge: {
     flexDirection: 'row',
@@ -414,16 +486,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Brand.surfaceMuted,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(22, 19, 31, 0.12)',
-    gap: 6,
+    gap: 4,
   },
   callBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: Brand.ink,
+  },
+  trackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0284C7',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    gap: 5,
+  },
+  trackBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Brand.surface,
   },
   bookBtn: {
     flex: 1,

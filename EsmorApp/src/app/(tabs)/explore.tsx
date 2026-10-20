@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -16,42 +17,94 @@ import { AppIcon, Icons } from '@/components/app-icon';
 import { TransportCard } from '@/components/transport/transport-card';
 import { BookRideModal } from '@/components/transport/book-ride-modal';
 import { PostRideModal } from '@/components/transport/post-ride-modal';
+import { VehicleTrackingModal } from '@/components/transport/vehicle-tracking-modal';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { speakPrompt } from '@/lib/voice-player';
+import {
+  DEFAULT_USER_LOCATION,
+  getRealUserLocation,
+  matchRidesForUserLocation,
+} from '@/lib/mandi-location-service';
 import { getAllTransportRides, INITIAL_MAHARASHTRA_RIDES } from '@/lib/transport-store';
-import type { TransportRide, TransportBooking } from '@/types/transport';
+import type { GeoPoint, TransportRide, TransportBooking } from '@/types/transport';
 
-type FilterTab = 'all' | 'pune' | 'nashik' | 'vashi' | 'sangli';
+type FilterTab = 'all' | 'nearby' | 'regional' | 'terminal' | 'pune' | 'nashik';
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
+
+  const [userLocation, setUserLocation] = useState<GeoPoint>(DEFAULT_USER_LOCATION);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const [rides, setRides] = useState<TransportRide[]>(INITIAL_MAHARASHTRA_RIDES);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+
   const [selectedRideForBooking, setSelectedRideForBooking] = useState<TransportRide | null>(null);
+  const [selectedRideForTracking, setSelectedRideForTracking] = useState<TransportRide | null>(null);
   const [postModalOpen, setPostModalOpen] = useState(false);
   const [latestBooking, setLatestBooking] = useState<TransportBooking | null>(null);
   const [speakingHeader, setSpeakingHeader] = useState(false);
 
+  // Initial load: resolve real user location and match nearby/regional/terminal mandis
   useEffect(() => {
     let mounted = true;
-    getAllTransportRides().then((list) => {
-      if (mounted) {
-        setRides(list);
+
+    async function loadData() {
+      try {
+        setDetectingLocation(true);
+        const loc = await getRealUserLocation();
+        if (!mounted) return;
+
+        setUserLocation(loc);
+
+        // Fetch DB rides & generate location-tailored rides
+        const customDbRides = await getAllTransportRides();
+        const matchedRides = matchRidesForUserLocation(loc);
+
+        // Custom user-posted rides first, then dynamic location-matched rides
+        const merged = [
+          ...customDbRides.filter((r) => r.id.startsWith('custom-')),
+          ...matchedRides,
+        ];
+
+        setRides(merged.length > 0 ? merged : INITIAL_MAHARASHTRA_RIDES);
+      } finally {
+        if (mounted) {
+          setDetectingLocation(false);
+        }
       }
-    });
+    }
+
+    loadData();
+
     return () => {
       mounted = false;
     };
   }, []);
 
+  const handleRefreshLocation = async () => {
+    setDetectingLocation(true);
+    try {
+      const loc = await getRealUserLocation();
+      setUserLocation(loc);
+      const customDbRides = await getAllTransportRides();
+      const matchedRides = matchRidesForUserLocation(loc);
+      const merged = [
+        ...customDbRides.filter((r) => r.id.startsWith('custom-')),
+        ...matchedRides,
+      ];
+      setRides(merged);
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    const list = await getAllTransportRides();
-    setRides(list);
+    await handleRefreshLocation();
     setRefreshing(false);
   };
 
@@ -60,10 +113,10 @@ export default function ExploreScreen() {
       setSpeakingHeader(true);
       const text =
         language === 'mr'
-          ? 'सामाईक वाहतूक सेवा. तुमच्या गावापासून बाजार समितीपर्यंत रिकाम्या गाड्यांची जागा एकत्र करून ५० ते ७० टक्के वाहतूक खर्च वाचवा. खालीलपैकी योग्य गाडी निवडून जागा बुक करा.'
+          ? `सामाईक वाहतूक सेवा. तुमचे स्थान ${userLocation.name} असून ओपन मॅप्स द्वारे जवळपासच्या आणि मोठ्या बाजार समित्या जोडल्या आहेत. गाडी निवडून जागा बुक करा किंवा थेट लाईव्ह ट्रॅक करा.`
           : language === 'hi'
-            ? 'साझा परिवहन सेवा। अपने गांव से मंडी तक खाली गाड़ियों की जगह साझा करके ५० से ७० प्रतिशत परिवहन खर्च बचाएं। नीचे दी गई गाड़ियों में जगह बुक करें।'
-            : 'Shared Rural Freight Transport. Pool empty vehicle space from your village to mandi and save 50 to 70 percent on transportation costs.';
+            ? `साझा वाहन सेवा। आपका स्थान ${userLocation.name} है और ओपन मैप्स द्वारा नजदीकी व बड़ी मंडियां जोड़ी गई हैं। जगह बुक करें या लाइव ट्रैक करें।`
+            : `Shared Transport. Your location is ${userLocation.name}. Matched with nearby and terminal mandis via OpenStreetMap. Book space or track vehicles live.`;
 
       await speakPrompt('transport_hub_header', language, text);
     } finally {
@@ -72,19 +125,23 @@ export default function ExploreScreen() {
   };
 
   const filteredRides = rides.filter((ride) => {
-    // Category pill filter
-    if (activeFilter === 'pune') {
-      const isPune = ride.toMarket.toLowerCase().includes('पुणे') || ride.toMarket.toLowerCase().includes('pune');
+    // Filter chips
+    if (activeFilter === 'nearby') {
+      if (ride.mandiCategory !== 'nearby') return false;
+    } else if (activeFilter === 'regional') {
+      if (ride.mandiCategory !== 'regional') return false;
+    } else if (activeFilter === 'terminal') {
+      if (ride.mandiCategory !== 'terminal') return false;
+    } else if (activeFilter === 'pune') {
+      const isPune =
+        ride.toMarket.toLowerCase().includes('पुणे') ||
+        ride.toMarket.toLowerCase().includes('pune');
       if (!isPune) return false;
     } else if (activeFilter === 'nashik') {
-      const isNashik = ride.toMarket.toLowerCase().includes('नाशिक') || ride.toMarket.toLowerCase().includes('nashik');
+      const isNashik =
+        ride.toMarket.toLowerCase().includes('नाशिक') ||
+        ride.toMarket.toLowerCase().includes('nashik');
       if (!isNashik) return false;
-    } else if (activeFilter === 'vashi') {
-      const isVashi = ride.toMarket.toLowerCase().includes('वाशी') || ride.toMarket.toLowerCase().includes('vashi');
-      if (!isVashi) return false;
-    } else if (activeFilter === 'sangli') {
-      const isSangli = ride.toMarket.toLowerCase().includes('सांगली') || ride.toMarket.toLowerCase().includes('sangli');
-      if (!isSangli) return false;
     }
 
     // Real-time search query across origin village, destination mandi, district, driver, and pickup hub
@@ -111,10 +168,10 @@ export default function ExploreScreen() {
           <View style={styles.headerTitles}>
             <Text style={styles.eyebrow}>
               {language === 'mr'
-                ? 'ग्रामीण मालवाहतूक पूल'
+                ? 'ओपनमॅप्स मालवाहतूक पूल'
                 : language === 'hi'
-                  ? 'ग्रामीण माल ढुलाई पूल'
-                  : 'Rural Freight Pooling'}
+                  ? 'ओपनमैप्स माल ढुलाई पूल'
+                  : 'OpenMaps Freight Pooling'}
             </Text>
             <Text style={styles.title}>
               {language === 'mr'
@@ -151,6 +208,35 @@ export default function ExploreScreen() {
           </View>
         </View>
 
+        {/* Real User Location Match Banner */}
+        <View style={styles.locationCard}>
+          <View style={styles.locationCardLeft}>
+            <View style={styles.locationGpsDot} />
+            <View style={styles.locationTextWrap}>
+              <Text style={styles.locationTitle} numberOfLines={1}>
+                {userLocation.name}
+              </Text>
+              <Text style={styles.locationSubtitle}>
+                {language === 'mr'
+                  ? 'ओपन मॅप्सने जवळपासच्या व मोठ्या बाजार समित्या शोधल्या'
+                  : 'Matched with Mandis using OpenStreetMap routing'}
+              </Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={styles.locationRefreshBtn}
+            onPress={handleRefreshLocation}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh GPS location">
+            {detectingLocation ? (
+              <ActivityIndicator size="small" color={Brand.ink} />
+            ) : (
+              <AppIcon name={Icons.location} size={15} color={Brand.ink} />
+            )}
+          </Pressable>
+        </View>
+
         {/* Latest Booking Banner if any */}
         {latestBooking && (
           <View style={styles.bookingBanner}>
@@ -161,16 +247,27 @@ export default function ExploreScreen() {
               <Text style={styles.bookingBannerTitle}>
                 {language === 'mr'
                   ? `जागा निश्चित! ₹${latestBooking.totalFare} मध्ये`
-                  : language === 'hi'
-                    ? `बुकिंग कन्फर्म! ₹${latestBooking.totalFare} में`
-                    : `Space Confirmed for ₹${latestBooking.totalFare}`}
+                  : `Space Confirmed for ₹${latestBooking.totalFare}`}
               </Text>
               <Text style={styles.bookingBannerSub}>
                 {language === 'mr'
-                  ? `टेम्पोपेक्षा तुमची ₹${latestBooking.estimatedSavings} बचत झाली! संकलन: ${latestBooking.pickupHub}`
-                  : `You saved ₹${latestBooking.estimatedSavings}! Pickup at: ${latestBooking.pickupHub}`}
+                  ? `टेम्पोपेक्षा तुमची ₹${latestBooking.estimatedSavings} बचत झाली!`
+                  : `You saved ₹${latestBooking.estimatedSavings}!`}
               </Text>
             </View>
+
+            <Pressable
+              style={styles.trackBookingBtn}
+              onPress={() => {
+                const bookedRide =
+                  rides.find((r) => r.id === latestBooking.rideId) || rides[0];
+                setSelectedRideForTracking(bookedRide);
+              }}>
+              <Text style={styles.trackBookingBtnText}>
+                {language === 'mr' ? 'थेट ट्रॅक' : 'Track'}
+              </Text>
+            </Pressable>
+
             <Pressable onPress={() => setLatestBooking(null)} style={styles.dismissBtn}>
               <AppIcon name={Icons.close} size={14} color={Brand.inkMuted} />
             </Pressable>
@@ -212,7 +309,7 @@ export default function ExploreScreen() {
           </View>
         </View>
 
-        {/* Route Filter Chips (Smooth horizontal scrollable single line) */}
+        {/* Route Filter Chips (Single horizontal scrollable line) */}
         <View style={styles.filterSection}>
           <ScrollView
             horizontal
@@ -224,6 +321,51 @@ export default function ExploreScreen() {
               onPress={() => setActiveFilter('all')}>
               <Text style={[styles.filterText, activeFilter === 'all' && styles.filterTextActive]}>
                 {language === 'mr' ? 'सर्व फेऱ्या' : language === 'hi' ? 'सभी फेरियां' : 'All Trips'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterChip,
+                activeFilter === 'nearby' && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveFilter('nearby')}>
+              <Text
+                style={[
+                  styles.filterText,
+                  activeFilter === 'nearby' && styles.filterTextActive,
+                ]}>
+                {language === 'mr' ? '🟢 जवळची मंडी (<45 km)' : '🟢 Nearby (<45 km)'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterChip,
+                activeFilter === 'regional' && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveFilter('regional')}>
+              <Text
+                style={[
+                  styles.filterText,
+                  activeFilter === 'regional' && styles.filterTextActive,
+                ]}>
+                {language === 'mr' ? '🟡 जिल्हा मंडी (45-110 km)' : '🟡 Regional APMC'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterChip,
+                activeFilter === 'terminal' && styles.filterChipActive,
+              ]}
+              onPress={() => setActiveFilter('terminal')}>
+              <Text
+                style={[
+                  styles.filterText,
+                  activeFilter === 'terminal' && styles.filterTextActive,
+                ]}>
+                {language === 'mr' ? '🔵 मोठी मंडी (>110 km)' : '🔵 Terminal Mandi'}
               </Text>
             </Pressable>
 
@@ -242,26 +384,10 @@ export default function ExploreScreen() {
                 {language === 'mr' ? 'नाशिक APMC' : 'Nashik APMC'}
               </Text>
             </Pressable>
-
-            <Pressable
-              style={[styles.filterChip, activeFilter === 'vashi' && styles.filterChipActive]}
-              onPress={() => setActiveFilter('vashi')}>
-              <Text style={[styles.filterText, activeFilter === 'vashi' && styles.filterTextActive]}>
-                {language === 'mr' ? 'वाशी मुंबई' : 'Vashi Mumbai'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.filterChip, activeFilter === 'sangli' && styles.filterChipActive]}
-              onPress={() => setActiveFilter('sangli')}>
-              <Text style={[styles.filterText, activeFilter === 'sangli' && styles.filterTextActive]}>
-                {language === 'mr' ? 'सांगली मार्केट' : 'Sangli Market'}
-              </Text>
-            </Pressable>
           </ScrollView>
         </View>
 
-        {/* Rides List */}
+        {/* Rides List with Live Tracking */}
         <FlatList
           data={filteredRides}
           keyExtractor={(item) => item.id}
@@ -269,6 +395,7 @@ export default function ExploreScreen() {
             <TransportCard
               ride={item}
               onBookPress={(r) => setSelectedRideForBooking(r)}
+              onTrackPress={(r) => setSelectedRideForTracking(r)}
             />
           )}
           contentContainerStyle={[
@@ -313,6 +440,13 @@ export default function ExploreScreen() {
           setRides((prev) => [newRide, ...prev]);
         }}
       />
+
+      {/* Live Vehicle Tracking Modal with Headless OpenStreetMap */}
+      <VehicleTrackingModal
+        ride={selectedRideForTracking}
+        visible={selectedRideForTracking !== null}
+        onClose={() => setSelectedRideForTracking(null)}
+      />
     </View>
   );
 }
@@ -334,7 +468,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 18,
     paddingTop: 4,
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   headerTitles: {
     flex: 1,
@@ -381,6 +515,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Brand.surface,
   },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Brand.surface,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginHorizontal: 18,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 19, 31, 0.08)',
+  },
+  locationCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    flex: 1,
+  },
+  locationGpsDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  locationTextWrap: {
+    flex: 1,
+  },
+  locationTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Brand.ink,
+  },
+  locationSubtitle: {
+    fontSize: 10,
+    color: Brand.inkMuted,
+    marginTop: 1,
+  },
+  locationRefreshBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Brand.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bookingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -388,41 +568,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#34A853',
     marginHorizontal: 18,
-    marginBottom: 10,
+    marginBottom: 8,
     borderRadius: 14,
-    padding: 12,
-    gap: 10,
+    padding: 10,
+    gap: 8,
   },
   bookingBannerIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Brand.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   partyIcon: {
-    fontSize: 16,
+    fontSize: 15,
   },
   bookingBannerText: {
     flex: 1,
   },
   bookingBannerTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#137333',
   },
   bookingBannerSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#137333',
-    marginTop: 2,
+    marginTop: 1,
+  },
+  trackBookingBtn: {
+    backgroundColor: '#137333',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  trackBookingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   dismissBtn: {
     padding: 4,
   },
   searchContainer: {
     paddingHorizontal: 18,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   searchBar: {
     height: 46,
@@ -458,7 +649,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterSection: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   filterScrollView: {
     flexGrow: 0,
@@ -471,7 +662,7 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     backgroundColor: Brand.surface,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,

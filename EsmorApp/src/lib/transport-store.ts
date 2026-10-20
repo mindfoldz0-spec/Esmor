@@ -22,6 +22,24 @@ export const INITIAL_MAHARASHTRA_RIDES: TransportRide[] = [
     estimatedMarketDistanceKm: 72,
     pickupHub: 'सुपा ग्रामपंचायत चौक / मारुती मंदिर',
     isVerified: true,
+    fromCoords: {
+      latitude: 18.3388,
+      longitude: 74.3773,
+      name: 'सुपा, बारामती (Supa, Baramati)',
+      district: 'Pune',
+    },
+    toCoords: {
+      latitude: 18.4905,
+      longitude: 73.8643,
+      name: 'गुलटेकडी मार्केट यार्ड, पुणे (Pune Market Yard)',
+      district: 'Pune',
+    },
+    depotCoords: {
+      latitude: 18.3188,
+      longitude: 74.405,
+      name: 'बारामती वाहन तळ',
+    },
+    mandiCategory: 'regional',
     voiceSummary: {
       mr: 'उद्या सकाळी साडेपाच वाजता बारामती ते पुणे मार्केट यार्डसाठी छोटा हत्ती उपलब्ध आहे. ४५ टक्के जागा रिकामी आहे. भाडे १४० रुपये प्रति पोते.',
       hi: 'कल सुबह साढ़े पांच बजे बारामती से पुणे मार्केट यार्ड के लिए छोटा हाथी उपलब्ध है। ४५ प्रतिशत जगह खाली है। किराया १४० रुपये प्रति बोरी।',
@@ -46,6 +64,24 @@ export const INITIAL_MAHARASHTRA_RIDES: TransportRide[] = [
     estimatedMarketDistanceKm: 65,
     pickupHub: 'धांदरफळ शेतकरी सेवा केंद्र',
     isVerified: true,
+    fromCoords: {
+      latitude: 19.5772,
+      longitude: 74.2144,
+      name: 'धांदरफळ, संगमनेर (Sangamner)',
+      district: 'Ahmednagar',
+    },
+    toCoords: {
+      latitude: 20.015,
+      longitude: 73.795,
+      name: 'नाशिक कृषी उत्पन्न बाजार समिती (Nashik APMC)',
+      district: 'Nashik',
+    },
+    depotCoords: {
+      latitude: 19.555,
+      longitude: 74.23,
+      name: 'संगमनेर वाहन तळ',
+    },
+    mandiCategory: 'regional',
     voiceSummary: {
       mr: 'आज रात्री आठ वाजता संगमनेर ते नाशिक कृषी बाजार समितीसाठी बोलेरो पिकअप उपलब्ध आहे. ६० टक्के जागा रिकामी आहे. भाडे ४५ रुपये प्रति क्रेट.',
       hi: 'आज रात आठ बजे संगमनेर से नाशिक कृषि बाजार समिति के लिए बोलेरो पिकअप उपलब्ध है। ६० प्रतिशत जगह खाली है। किराया ४५ रुपये प्रति क्रेट।',
@@ -70,6 +106,24 @@ export const INITIAL_MAHARASHTRA_RIDES: TransportRide[] = [
     estimatedMarketDistanceKm: 42,
     pickupHub: 'वारणा दूध डेअरी संकलन केंद्र',
     isVerified: true,
+    fromCoords: {
+      latitude: 16.6975,
+      longitude: 74.2483,
+      name: 'वारणा नगर, कोल्हापूर (Warna Nagar)',
+      district: 'Kolhapur',
+    },
+    toCoords: {
+      latitude: 16.8524,
+      longitude: 74.5815,
+      name: 'सांगली हळद व धान्य मार्केट (Sangli Market)',
+      district: 'Sangli',
+    },
+    depotCoords: {
+      latitude: 16.715,
+      longitude: 74.27,
+      name: 'वारणा दूध संकलन तळ',
+    },
+    mandiCategory: 'nearby',
     voiceSummary: {
       mr: 'उद्या सकाळी सहा वाजता वारणा नगर ते सांगली मार्केटसाठी ट्रॅक्टर ट्रॉली उपलब्ध आहे. ५० टक्के जागा रिकामी आहे. भाडे १८० रुपये प्रति क्विंटल.',
       hi: 'कल सुबह छह बजे वारणा नगर से सांगली मार्केट के लिए ट्रैक्टर ट्रॉली उपलब्ध है। ५० प्रतिशत जगह खाली है। किराया १८० रुपये प्रति क्विंटल।',
@@ -94,6 +148,24 @@ export const INITIAL_MAHARASHTRA_RIDES: TransportRide[] = [
     estimatedMarketDistanceKm: 135,
     pickupHub: 'ओतूर बस स्टँड समोरील किराणा दुकान',
     isVerified: true,
+    fromCoords: {
+      latitude: 19.1818,
+      longitude: 74.101,
+      name: 'ओतूर, जुन्नर (Otur, Junnar)',
+      district: 'Pune',
+    },
+    toCoords: {
+      latitude: 19.076,
+      longitude: 73.0033,
+      name: 'वाशी नवी मुंबई APMC (Vashi APMC)',
+      district: 'Thane',
+    },
+    depotCoords: {
+      latitude: 19.2,
+      longitude: 74.12,
+      name: 'जुन्नर फाटा डेपो',
+    },
+    mandiCategory: 'terminal',
     voiceSummary: {
       mr: 'उद्या दुपारी दोन वाजता जुन्नर ते वाशी नवी मुंबई एपीएमसीसाठी मालवाहू रिक्षा उपलब्ध आहे. ३५ टक्के जागा रिकामी आहे. भाडे ५० रुपये प्रति क्रेट.',
       hi: 'कल दोपहर दो बजे जुन्नर से वाशी नवी मुंबई एपीएमसी के लिए थ्री व्हीलर उपलब्ध है। ३५ प्रतिशत जगह खाली है। किराया ५० रुपये प्रति क्रेट।',

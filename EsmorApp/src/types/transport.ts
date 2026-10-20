@@ -4,6 +4,16 @@ export type UnitType = 'sack' | 'crate' | 'quintal';
 
 export type CargoCategory = 'vegetables' | 'fruits' | 'grains' | 'kirana' | 'handcrafts' | 'other';
 
+export type MandiDistanceCategory = 'nearby' | 'regional' | 'terminal';
+
+export type GeoPoint = {
+  latitude: number;
+  longitude: number;
+  name: string;
+  district?: string;
+  address?: string;
+};
+
 export type TransportRide = {
   id: string;
   driverName: string;
@@ -22,6 +32,10 @@ export type TransportRide = {
   estimatedMarketDistanceKm: number;
   pickupHub: string;
   isVerified: boolean;
+  fromCoords?: GeoPoint;
+  toCoords?: GeoPoint;
+  depotCoords?: GeoPoint;
+  mandiCategory?: MandiDistanceCategory;
   voiceSummary: {
     mr: string;
     hi: string;
@@ -43,3 +57,7 @@ export type TransportBooking = {
   bookedAt: string;
   pickupHub: string;
 };
+
+export type TrackingPhase = 'approaching_source' | 'en_route_mandi';
+
+export type RoutePoint = [number, number]; // [longitude, latitude]
