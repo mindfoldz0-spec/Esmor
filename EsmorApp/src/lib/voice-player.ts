@@ -33,9 +33,8 @@ export function isSpeaking(): boolean {
   return currentSpeaking;
 }
 
-export async function stopVoice(): Promise<void> {
+async function stopCurrentAudio(): Promise<void> {
   currentPlayId++;
-  activeRequestId++;
 
   if (currentSound) {
     try {
@@ -60,6 +59,11 @@ export async function stopVoice(): Promise<void> {
   notifySpeaking(false);
 }
 
+export async function stopVoice(): Promise<void> {
+  activeRequestId++;
+  await stopCurrentAudio();
+}
+
 /**
  * Play raw base64 audio across iOS, Android, and Web.
  */
@@ -68,7 +72,12 @@ export async function playBase64Audio(
   identifier: string,
   reqId?: number
 ): Promise<void> {
-  await stopVoice();
+  if (reqId !== undefined && reqId !== activeRequestId) {
+    return;
+  }
+
+  await stopCurrentAudio();
+
   if (reqId !== undefined && reqId !== activeRequestId) {
     return;
   }
