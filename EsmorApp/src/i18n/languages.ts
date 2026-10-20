@@ -21,7 +21,7 @@ export const LANGUAGES = [
 
 export type Language = (typeof LANGUAGES)[number]['code'];
 
-export const DEFAULT_LANGUAGE: Language = 'en';
+export const DEFAULT_LANGUAGE: Language = 'hi';
 
 export function isLanguage(value: unknown): value is Language {
   return LANGUAGES.some((language) => language.code === value);

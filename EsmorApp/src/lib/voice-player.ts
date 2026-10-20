@@ -27,12 +27,15 @@ export function subscribeSpeaking(listener: Listener): () => void {
   };
 }
 
+let activeRequestId = 0;
+
 export function isSpeaking(): boolean {
   return currentSpeaking;
 }
 
 export async function stopVoice(): Promise<void> {
   currentPlayId++;
+  activeRequestId++;
 
   if (currentSound) {
     try {
@@ -60,10 +63,17 @@ export async function stopVoice(): Promise<void> {
 /**
  * Play raw base64 audio across iOS, Android, and Web.
  */
-export async function playBase64Audio(base64: string, identifier: string): Promise<void> {
+export async function playBase64Audio(
+  base64: string,
+  identifier: string,
+  reqId?: number
+): Promise<void> {
   await stopVoice();
-  const playId = ++currentPlayId;
+  if (reqId !== undefined && reqId !== activeRequestId) {
+    return;
+  }
 
+  const playId = ++currentPlayId;
   notifySpeaking(true);
 
   if (Platform.OS === 'web') {
@@ -86,7 +96,16 @@ export async function playBase64Audio(base64: string, identifier: string): Promi
         }
       };
 
-      await audio.play();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise.catch((err) => {
+          // Play was interrupted by user tapping another option
+          if (currentPlayId === playId) {
+            notifySpeaking(false);
+            currentWebAudio = null;
+          }
+        });
+      }
     } catch (err) {
       console.warn('Web audio playback error:', err);
       notifySpeaking(false);
@@ -113,13 +132,16 @@ export async function playBase64Audio(base64: string, identifier: string): Promi
       });
     }
 
+    if (currentPlayId !== playId || (reqId !== undefined && reqId !== activeRequestId)) {
+      return;
+    }
+
     const { sound } = await Audio.Sound.createAsync(
       { uri: fileUri },
       { shouldPlay: true }
     );
 
-    if (currentPlayId !== playId) {
-      // Another audio was started in the meantime
+    if (currentPlayId !== playId || (reqId !== undefined && reqId !== activeRequestId)) {
       await sound.unloadAsync();
       return;
     }
@@ -151,13 +173,21 @@ export async function speakPrompt(
   language: Language,
   fallbackText?: string
 ): Promise<void> {
+  const reqId = ++activeRequestId;
+
   try {
     const audio = await getVoiceAudio(voiceKey, language, fallbackText);
+    if (reqId !== activeRequestId) {
+      // Newer input voice arrived while audio was being read! Abort obsolete page voice.
+      return;
+    }
     if (audio) {
-      await playBase64Audio(audio, `${language}_${voiceKey}`);
+      await playBase64Audio(audio, `${language}_${voiceKey}`, reqId);
     }
   } catch (err) {
-    console.warn(`Failed to speak prompt ${voiceKey}:`, err);
-    notifySpeaking(false);
+    if (reqId === activeRequestId) {
+      console.warn(`Failed to speak prompt ${voiceKey}:`, err);
+      notifySpeaking(false);
+    }
   }
 }

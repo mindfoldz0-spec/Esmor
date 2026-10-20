@@ -46,6 +46,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const languageRef = React.useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
   const speak = useCallback(
     async (
       voiceKey: VoicePromptKey | string,
@@ -54,11 +59,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         fallbackText?: string;
       }
     ) => {
-      const targetLang = options?.language ?? language;
+      const targetLang = options?.language ?? languageRef.current;
       setActiveKey(voiceKey);
       await speakPrompt(voiceKey, targetLang, options?.fallbackText);
     },
-    [language]
+    []
   );
 
   const stop = useCallback(async () => {

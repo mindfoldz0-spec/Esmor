@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -46,10 +46,12 @@ export function OnboardingShell({
   onBack,
 }: OnboardingShellProps) {
   const { t } = useI18n();
-  const { speak, stop } = useVoice();
+  const { speak } = useVoice();
+  const hasPlayedIntroRef = useRef(false);
 
   useEffect(() => {
-    if (!voiceKey || autoPlayVoice === false) return;
+    if (!voiceKey || autoPlayVoice === false || hasPlayedIntroRef.current) return;
+    hasPlayedIntroRef.current = true;
 
     const timer = setTimeout(() => {
       speak(voiceKey);
@@ -57,9 +59,8 @@ export function OnboardingShell({
 
     return () => {
       clearTimeout(timer);
-      stop();
     };
-  }, [voiceKey, autoPlayVoice, speak, stop]);
+  }, [voiceKey, autoPlayVoice, speak]);
 
   return (
     <View style={styles.screen}>
