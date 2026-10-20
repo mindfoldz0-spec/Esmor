@@ -118,7 +118,7 @@ function TabItem({ label, icon, focused, onPress, onLongPress }: TabItemProps) {
  * Circular tabs use a 0.3s-style hover fill, a soft lift and scale, and
  * smoothly crossfade into the active state.
  */
-export function FloatingTabBar({ state, emitter, navigateToTab, insets }: TabBarProps) {
+export function FloatingTabBar({ state, navigation, insets }: TabBarProps) {
   const { t } = useI18n();
 
   return (
@@ -135,19 +135,19 @@ export function FloatingTabBar({ state, emitter, navigateToTab, insets }: TabBar
           const focused = state.index === index;
 
           const onPress = () => {
-            const event = emitter.emit({
+            const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
               canPreventDefault: true,
             });
 
             if (!focused && !event.defaultPrevented) {
-              navigateToTab(route.key);
+              navigation.navigate(route.name, route.params);
             }
           };
 
           const onLongPress = () => {
-            emitter.emit({
+            navigation.emit({
               type: 'tabLongPress',
               target: route.key,
             });

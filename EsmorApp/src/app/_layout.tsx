@@ -57,13 +57,13 @@ function RootNavigator() {
         headerShown: false,
         contentStyle: { backgroundColor: Brand.background },
       }}>
-      <Stack.Protected guard={Boolean(profile)} redirectTo="/language">
+      <Stack.Protected guard={Boolean(profile)}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
       </Stack.Protected>
 
-      <Stack.Protected guard={!profile} redirectTo="/">
+      <Stack.Protected guard={!profile}>
         <Stack.Screen name="(onboarding)" options={{ animation: 'fade' }} />
       </Stack.Protected>
     </Stack>

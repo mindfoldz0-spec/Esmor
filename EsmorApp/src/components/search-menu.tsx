@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  type TextInputInstance,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,7 +41,7 @@ export function SearchMenu({
 }: SearchMenuProps) {
   const insets = useSafeAreaInsets();
   const { t } = useI18n();
-  const inputRef = useRef<TextInputInstance>(null);
+  const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
 
   const defaultRecentSearches = useMemo(
