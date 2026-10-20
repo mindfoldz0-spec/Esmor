@@ -2,7 +2,9 @@ import type { Language } from '@/i18n/languages';
 
 export type Gender = 'female' | 'male';
 
-export type UserRole = 'farmer' | 'kirana' | 'entrepreneur';
+export type UserCategory = 'consumer' | 'producer';
+
+export type UserRole = 'consumer' | 'farmer' | 'kirana' | 'entrepreneur';
 
 export type LocationSource = 'gps' | 'manual';
 
@@ -19,6 +21,7 @@ export type Profile = {
   age: number;
   phone: string;
   gender: Gender;
+  category: UserCategory;
   role: UserRole;
   language: Language;
   location: ProfileLocation;
@@ -32,8 +35,17 @@ export function isGender(value: unknown): value is Gender {
   return value === 'female' || value === 'male';
 }
 
+export function isUserCategory(value: unknown): value is UserCategory {
+  return value === 'consumer' || value === 'producer';
+}
+
 export function isUserRole(value: unknown): value is UserRole {
-  return value === 'farmer' || value === 'kirana' || value === 'entrepreneur';
+  return (
+    value === 'consumer' ||
+    value === 'farmer' ||
+    value === 'kirana' ||
+    value === 'entrepreneur'
+  );
 }
 
 export function isLocationSource(value: unknown): value is LocationSource {

@@ -59,11 +59,13 @@ export default function ProfileScreen() {
   const location = formatLocation(profile);
   const genderKey = profile.gender === 'female' ? 'gender.female' : 'gender.male';
   const roleKey =
-    profile.role === 'kirana'
-      ? 'role.kirana'
-      : profile.role === 'entrepreneur'
-        ? 'role.entrepreneur'
-        : 'role.farmer';
+    profile.role === 'consumer'
+      ? 'accountType.consumer'
+      : profile.role === 'kirana'
+        ? 'role.kirana'
+        : profile.role === 'entrepreneur'
+          ? 'role.entrepreneur'
+          : 'role.farmer';
 
   const handleBack = () => {
     if (router.canGoBack()) {

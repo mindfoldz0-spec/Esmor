@@ -22,13 +22,16 @@ import { useAppData } from '@/providers/app-data-provider';
 import { useOnboarding } from '@/providers/onboarding-provider';
 import type { UserRole } from '@/types/profile';
 
-const FARMER_IMAGE = require('@/assets/images/farmer.png');
-const KIRANA_IMAGE = require('@/assets/images/kiranastoreowner.png');
-const FEMALE_ENTREPRENEUR_IMAGE = require('@/assets/images/female_entrepreneur.png');
-const MALE_ENTREPRENEUR_IMAGE = require('@/assets/images/male_entrepreneur.png');
+type ProducerRole = Exclude<UserRole, 'consumer'>;
+
+const ROLE_IMAGES: Record<ProducerRole, ImageSource> = {
+  farmer: require('@/assets/images/roles/farmer.jpg'),
+  kirana: require('@/assets/images/roles/kirana.jpg'),
+  entrepreneur: require('@/assets/images/roles/women-entrepreneur.jpg'),
+};
 
 type RoleOptionConfig = {
-  value: UserRole;
+  value: ProducerRole;
   titleKey: TranslationKey;
   badgeKey: TranslationKey;
   descKey: TranslationKey;
@@ -73,27 +76,33 @@ export default function RoleScreen() {
       return;
     }
 
-    router.replace('/gender');
+    router.replace('/account-type' as any);
   };
 
-  const handleSelect = (role: UserRole) => {
+  const handleSelect = (role: ProducerRole) => {
     updateForm({ role });
     setError(null);
   };
 
   const handleFinish = async () => {
+    const age = Number(form.age);
+    const phoneDigits = form.phone.replace(/\D/g, '');
+    const detailsComplete =
+      form.name.trim().length >= 2 &&
+      form.age.trim().length > 0 &&
+      Number.isInteger(age) &&
+      age >= 13 &&
+      age <= 100 &&
+      phoneDigits.length >= 7 &&
+      phoneDigits.length <= 15;
+
+    if (!detailsComplete || !form.location || !form.gender) {
+      setError(t('onboarding.incomplete'));
+      return;
+    }
+
     if (!form.role) {
       setError(t('role.error'));
-      return;
-    }
-
-    if (!form.gender) {
-      setError(t('gender.error'));
-      return;
-    }
-
-    if (!form.location) {
-      setError(t('onboarding.incomplete'));
       return;
     }
 
@@ -103,9 +112,10 @@ export default function RoleScreen() {
     try {
       await completeOnboarding({
         name: form.name.trim(),
-        age: Number(form.age),
+        age,
         phone: form.phone.trim(),
         gender: form.gender,
+        category: form.category ?? 'producer',
         role: form.role,
         language,
         location: form.location,
@@ -117,19 +127,12 @@ export default function RoleScreen() {
     }
   };
 
-  const getRoleImage = (role: UserRole) => {
-    if (role === 'farmer') {
-      return FARMER_IMAGE;
-    }
-    if (role === 'kirana') {
-      return KIRANA_IMAGE;
-    }
-    return form.gender === 'male' ? MALE_ENTREPRENEUR_IMAGE : FEMALE_ENTREPRENEUR_IMAGE;
-  };
+  const getRoleImage = (role: ProducerRole) => ROLE_IMAGES[role];
 
   return (
     <OnboardingShell
-      step={5}
+      step={6}
+      totalSteps={6}
       eyebrow={t('role.eyebrow')}
       title={t('role.title')}
       subtitle={t('role.subtitle')}
@@ -178,7 +181,7 @@ function RoleCard({
   imageSource,
   onPress,
 }: {
-  role: UserRole;
+  role: ProducerRole;
   title: string;
   badge: string;
   description: string;

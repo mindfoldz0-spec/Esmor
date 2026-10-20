@@ -63,7 +63,7 @@ export default function GenderScreen() {
     }
 
     setError(null);
-    router.push('/role');
+    router.push('/account-type' as any);
   };
 
   return (

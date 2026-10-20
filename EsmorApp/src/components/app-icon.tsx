@@ -35,6 +35,8 @@ export const Icons = {
   home: { ios: 'house', android: 'home', web: 'home' },
   grid: { ios: 'square.grid.2x2', android: 'grid_view', web: 'grid_view' },
   chart: { ios: 'chart.bar', android: 'bar_chart', web: 'bar_chart' },
+  sun: { ios: 'sun.max.fill', android: 'wb_sunny', web: 'wb_sunny' },
+  wallet: { ios: 'wallet.pass.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' },
   person: { ios: 'person', android: 'person', web: 'person' },
   sparkle: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' },
   check: { ios: 'checkmark', android: 'check', web: 'check' },

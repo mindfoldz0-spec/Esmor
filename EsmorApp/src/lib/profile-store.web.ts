@@ -2,6 +2,7 @@ import { isLanguage, type Language } from '@/i18n/languages';
 import {
   isGender,
   isLocationSource,
+  isUserCategory,
   isUserRole,
   type NewProfile,
   type Profile,
@@ -42,9 +43,16 @@ function readStoredProfile(): Profile | null {
       return null;
     }
 
+    const category = isUserCategory(parsed.category)
+      ? parsed.category
+      : parsed.role === 'consumer'
+        ? 'consumer'
+        : 'producer';
+
     return {
       ...parsed,
-      role: isUserRole(parsed.role) ? parsed.role : 'farmer',
+      category,
+      role: isUserRole(parsed.role) ? parsed.role : category === 'consumer' ? 'consumer' : 'farmer',
     } as Profile;
   } catch {
     return null;
@@ -62,9 +70,16 @@ export async function getProfile(): Promise<Profile | null> {
 export async function saveProfile(input: NewProfile): Promise<Profile> {
   const existing = readStoredProfile();
   const now = new Date().toISOString();
+  const category = isUserCategory(input.category)
+    ? input.category
+    : input.role === 'consumer'
+      ? 'consumer'
+      : 'producer';
+
   const profile: Profile = {
     ...input,
-    role: isUserRole(input.role) ? input.role : 'farmer',
+    category,
+    role: isUserRole(input.role) ? input.role : category === 'consumer' ? 'consumer' : 'farmer',
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

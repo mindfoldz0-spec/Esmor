@@ -4,19 +4,22 @@ import { DEFAULT_LANGUAGE, isLanguage, type Language } from '@/i18n/languages';
 import {
   isGender,
   isLocationSource,
+  isUserCategory,
   isUserRole,
   type NewProfile,
   type Profile,
+  type UserCategory,
 } from '@/types/profile';
 
 const DATABASE_NAME = 'esmor.db';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 type ProfileRow = {
   name: string;
   age: number;
   phone: string;
   gender: string;
+  category?: string | null;
   role?: string | null;
   language: string;
   location_label: string | null;
@@ -43,6 +46,7 @@ async function migrate(db: SQLite.SQLiteDatabase) {
         age INTEGER NOT NULL,
         phone TEXT NOT NULL,
         gender TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'producer',
         role TEXT NOT NULL DEFAULT 'farmer',
         language TEXT NOT NULL,
         location_label TEXT,
@@ -54,11 +58,20 @@ async function migrate(db: SQLite.SQLiteDatabase) {
         updated_at TEXT NOT NULL
       );
     `);
-  } else if (currentVersion < 2) {
-    try {
-      await db.execAsync("ALTER TABLE profile ADD COLUMN role TEXT DEFAULT 'farmer'");
-    } catch {
-      // Column might already exist
+  } else {
+    if (currentVersion < 2) {
+      try {
+        await db.execAsync("ALTER TABLE profile ADD COLUMN role TEXT DEFAULT 'farmer'");
+      } catch {
+        // Column might already exist
+      }
+    }
+    if (currentVersion < 3) {
+      try {
+        await db.execAsync("ALTER TABLE profile ADD COLUMN category TEXT DEFAULT 'producer'");
+      } catch {
+        // Column might already exist
+      }
     }
   }
 
@@ -82,13 +95,19 @@ function mapProfile(row: ProfileRow): Profile {
   const locationSource = isLocationSource(row.location_source)
     ? row.location_source
     : 'gps';
+  const category: UserCategory = isUserCategory(row.category)
+    ? row.category
+    : row.role === 'consumer'
+      ? 'consumer'
+      : 'producer';
 
   return {
     name: row.name,
     age: row.age,
     phone: row.phone,
     gender: isGender(row.gender) ? row.gender : 'female',
-    role: isUserRole(row.role) ? row.role : 'farmer',
+    category,
+    role: isUserRole(row.role) ? row.role : category === 'consumer' ? 'consumer' : 'farmer',
     language,
     location: {
       label: row.location_label,
@@ -111,14 +130,19 @@ export async function getProfile(): Promise<Profile | null> {
 export async function saveProfile(input: NewProfile): Promise<Profile> {
   const db = await getDatabase();
   const now = new Date().toISOString();
+  const category: UserCategory = isUserCategory(input.category)
+    ? input.category
+    : input.role === 'consumer'
+      ? 'consumer'
+      : 'producer';
 
   await db.runAsync(
     `INSERT INTO profile (
-      id, name, age, phone, gender, role, language,
+      id, name, age, phone, gender, category, role, language,
       location_label, location_latitude, location_longitude, location_accuracy,
       location_source, created_at, updated_at
     ) VALUES (
-      1, $name, $age, $phone, $gender, $role, $language,
+      1, $name, $age, $phone, $gender, $category, $role, $language,
       $locationLabel, $latitude, $longitude, $accuracy,
       $locationSource, $createdAt, $updatedAt
     )
@@ -127,6 +151,7 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
       age = excluded.age,
       phone = excluded.phone,
       gender = excluded.gender,
+      category = excluded.category,
       role = excluded.role,
       language = excluded.language,
       location_label = excluded.location_label,
@@ -140,6 +165,7 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
       $age: input.age,
       $phone: input.phone,
       $gender: input.gender,
+      $category: category,
       $role: input.role,
       $language: input.language,
       $locationLabel: input.location.label,

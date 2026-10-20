@@ -15,10 +15,11 @@ import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 
-const TOTAL_STEPS = 4;
+const DEFAULT_TOTAL_STEPS = 5;
 
 type OnboardingShellProps = {
   step: number;
+  totalSteps?: number;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -29,6 +30,7 @@ type OnboardingShellProps = {
 
 export function OnboardingShell({
   step,
+  totalSteps = DEFAULT_TOTAL_STEPS,
   eyebrow,
   title,
   subtitle,
@@ -70,7 +72,7 @@ export function OnboardingShell({
               )}
 
               <Text style={styles.stepText} allowFontScaling={false}>
-                {t('common.step', { current: step, total: TOTAL_STEPS })}
+                {t('common.step', { current: step, total: totalSteps })}
               </Text>
             </View>
 
@@ -79,10 +81,10 @@ export function OnboardingShell({
               accessibilityRole="progressbar"
               accessibilityLabel={t('onboarding.progressA11y', {
                 current: step,
-                total: TOTAL_STEPS,
+                total: totalSteps,
               })}
-              accessibilityValue={{ min: 1, max: TOTAL_STEPS, now: step }}>
-              {Array.from({ length: TOTAL_STEPS }, (_, index) => (
+              accessibilityValue={{ min: 1, max: totalSteps, now: step }}>
+              {Array.from({ length: totalSteps }, (_, index) => (
                 <View
                   key={index}
                   style={[

@@ -19,7 +19,7 @@ import { useI18n } from '@/i18n';
 import { useOnboarding } from '@/providers/onboarding-provider';
 import type { LocationSource, ProfileLocation } from '@/types/profile';
 
-const LOCATION_BANNER = require('@/assets/images/location_page.png');
+const LOCATION_BANNER = require('@/assets/images/location-banner.jpg');
 
 function formatAddress(address: Location.LocationGeocodedAddress) {
   const parts = [

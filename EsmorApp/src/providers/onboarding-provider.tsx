@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { Gender, ProfileLocation, UserRole } from '@/types/profile';
+import type { Gender, ProfileLocation, UserCategory, UserRole } from '@/types/profile';
 
 export type OnboardingForm = {
   name: string;
@@ -15,6 +15,7 @@ export type OnboardingForm = {
   phone: string;
   location: ProfileLocation | null;
   gender: Gender | null;
+  category: UserCategory | null;
   role: UserRole | null;
 };
 
@@ -24,6 +25,7 @@ const INITIAL_FORM: OnboardingForm = {
   phone: '',
   location: null,
   gender: null,
+  category: null,
   role: null,
 };
 

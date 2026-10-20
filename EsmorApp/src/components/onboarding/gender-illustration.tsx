@@ -3,8 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import type { Gender } from '@/types/profile';
 
-const FEMALE_ICON = require('@/assets/images/female_icon.png');
-const MALE_ICON = require('@/assets/images/male_icon.png');
+const FEMALE_ICON = require('@/assets/images/gender/female.jpg');
+const MALE_ICON = require('@/assets/images/gender/male.jpg');
 
 type GenderIllustrationProps = {
   gender: Gender;
