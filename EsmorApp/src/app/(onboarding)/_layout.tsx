@@ -16,6 +16,7 @@ export default function OnboardingLayout() {
         <Stack.Screen name="details" />
         <Stack.Screen name="location" />
         <Stack.Screen name="gender" />
+        <Stack.Screen name="role" />
       </Stack>
     </OnboardingProvider>
   );

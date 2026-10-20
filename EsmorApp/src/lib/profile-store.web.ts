@@ -2,6 +2,7 @@ import { isLanguage, type Language } from '@/i18n/languages';
 import {
   isGender,
   isLocationSource,
+  isUserRole,
   type NewProfile,
   type Profile,
 } from '@/types/profile';
@@ -41,7 +42,10 @@ function readStoredProfile(): Profile | null {
       return null;
     }
 
-    return parsed as Profile;
+    return {
+      ...parsed,
+      role: isUserRole(parsed.role) ? parsed.role : 'farmer',
+    } as Profile;
   } catch {
     return null;
   }
@@ -60,6 +64,7 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
   const now = new Date().toISOString();
   const profile: Profile = {
     ...input,
+    role: isUserRole(input.role) ? input.role : 'farmer',
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

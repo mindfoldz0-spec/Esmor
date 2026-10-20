@@ -2,6 +2,8 @@ import type { Language } from '@/i18n/languages';
 
 export type Gender = 'female' | 'male';
 
+export type UserRole = 'farmer' | 'kirana' | 'entrepreneur';
+
 export type LocationSource = 'gps' | 'manual';
 
 export type ProfileLocation = {
@@ -17,6 +19,7 @@ export type Profile = {
   age: number;
   phone: string;
   gender: Gender;
+  role: UserRole;
   language: Language;
   location: ProfileLocation;
   createdAt: string;
@@ -27,6 +30,10 @@ export type NewProfile = Omit<Profile, 'createdAt' | 'updatedAt'>;
 
 export function isGender(value: unknown): value is Gender {
   return value === 'female' || value === 'male';
+}
+
+export function isUserRole(value: unknown): value is UserRole {
+  return value === 'farmer' || value === 'kirana' || value === 'entrepreneur';
 }
 
 export function isLocationSource(value: unknown): value is LocationSource {

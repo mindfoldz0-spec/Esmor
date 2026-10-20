@@ -19,7 +19,6 @@ import { OnboardingNote, OnboardingShell } from '@/components/onboarding/onboard
 import { PrimaryButton } from '@/components/onboarding/primary-button';
 import { Brand } from '@/constants/theme';
 import { useI18n, type TranslationKey } from '@/i18n';
-import { useAppData } from '@/providers/app-data-provider';
 import { useOnboarding } from '@/providers/onboarding-provider';
 import type { Gender } from '@/types/profile';
 
@@ -35,10 +34,8 @@ const GENDER_OPTIONS: {
 export default function GenderScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const { form, updateForm } = useOnboarding();
-  const { completeOnboarding } = useAppData();
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const viewportWidth = Math.min(width, 640);
@@ -59,35 +56,14 @@ export default function GenderScreen() {
     setError(null);
   };
 
-  const handleFinish = async () => {
+  const handleContinue = () => {
     if (!form.gender) {
       setError(t('gender.error'));
       return;
     }
 
-    if (!form.location) {
-      setError(t('onboarding.incomplete'));
-      return;
-    }
-
-    setSaving(true);
     setError(null);
-
-    try {
-      await completeOnboarding({
-        name: form.name.trim(),
-        age: Number(form.age),
-        phone: form.phone.trim(),
-        gender: form.gender,
-        language,
-        location: form.location,
-      });
-      // The protected root stack switches to the app when the profile appears.
-    } catch (cause) {
-      console.warn('Could not save the profile.', cause);
-      setSaving(false);
-      setError(t('onboarding.saveError'));
-    }
+    router.push('/role');
   };
 
   return (
@@ -99,10 +75,8 @@ export default function GenderScreen() {
       onBack={handleBack}
       footer={
         <PrimaryButton
-          label={saving ? t('common.saving') : t('common.finish')}
-          onPress={handleFinish}
-          loading={saving}
-          icon="check"
+          label={t('common.continue')}
+          onPress={handleContinue}
         />
       }>
       <View style={styles.grid} accessibilityRole="radiogroup">

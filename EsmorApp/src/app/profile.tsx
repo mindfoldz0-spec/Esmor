@@ -58,6 +58,12 @@ export default function ProfileScreen() {
   const { firstName, lastName } = splitProfileName(profile.name);
   const location = formatLocation(profile);
   const genderKey = profile.gender === 'female' ? 'gender.female' : 'gender.male';
+  const roleKey =
+    profile.role === 'kirana'
+      ? 'role.kirana'
+      : profile.role === 'entrepreneur'
+        ? 'role.entrepreneur'
+        : 'role.farmer';
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -118,6 +124,11 @@ export default function ProfileScreen() {
     value: string;
     icon: AppIconName;
   }[] = [
+    {
+      label: t('profile.role'),
+      value: t(roleKey),
+      icon: Icons.sparkle,
+    },
     {
       label: t('profile.age'),
       value: t('profile.ageValue', { age: profile.age }),

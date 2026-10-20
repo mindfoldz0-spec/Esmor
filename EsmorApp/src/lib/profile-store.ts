@@ -4,18 +4,20 @@ import { DEFAULT_LANGUAGE, isLanguage, type Language } from '@/i18n/languages';
 import {
   isGender,
   isLocationSource,
+  isUserRole,
   type NewProfile,
   type Profile,
 } from '@/types/profile';
 
 const DATABASE_NAME = 'esmor.db';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 type ProfileRow = {
   name: string;
   age: number;
   phone: string;
   gender: string;
+  role?: string | null;
   language: string;
   location_label: string | null;
   location_latitude: number | null;
@@ -41,6 +43,7 @@ async function migrate(db: SQLite.SQLiteDatabase) {
         age INTEGER NOT NULL,
         phone TEXT NOT NULL,
         gender TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'farmer',
         language TEXT NOT NULL,
         location_label TEXT,
         location_latitude REAL,
@@ -51,6 +54,12 @@ async function migrate(db: SQLite.SQLiteDatabase) {
         updated_at TEXT NOT NULL
       );
     `);
+  } else if (currentVersion < 2) {
+    try {
+      await db.execAsync("ALTER TABLE profile ADD COLUMN role TEXT DEFAULT 'farmer'");
+    } catch {
+      // Column might already exist
+    }
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
@@ -79,6 +88,7 @@ function mapProfile(row: ProfileRow): Profile {
     age: row.age,
     phone: row.phone,
     gender: isGender(row.gender) ? row.gender : 'female',
+    role: isUserRole(row.role) ? row.role : 'farmer',
     language,
     location: {
       label: row.location_label,
@@ -104,11 +114,11 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
 
   await db.runAsync(
     `INSERT INTO profile (
-      id, name, age, phone, gender, language,
+      id, name, age, phone, gender, role, language,
       location_label, location_latitude, location_longitude, location_accuracy,
       location_source, created_at, updated_at
     ) VALUES (
-      1, $name, $age, $phone, $gender, $language,
+      1, $name, $age, $phone, $gender, $role, $language,
       $locationLabel, $latitude, $longitude, $accuracy,
       $locationSource, $createdAt, $updatedAt
     )
@@ -117,6 +127,7 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
       age = excluded.age,
       phone = excluded.phone,
       gender = excluded.gender,
+      role = excluded.role,
       language = excluded.language,
       location_label = excluded.location_label,
       location_latitude = excluded.location_latitude,
@@ -129,6 +140,7 @@ export async function saveProfile(input: NewProfile): Promise<Profile> {
       $age: input.age,
       $phone: input.phone,
       $gender: input.gender,
+      $role: input.role,
       $language: input.language,
       $locationLabel: input.location.label,
       $latitude: input.location.latitude,
