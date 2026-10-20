@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -20,11 +21,13 @@ import { PostRideModal } from '@/components/transport/post-ride-modal';
 import { VehicleTrackingModal } from '@/components/transport/vehicle-tracking-modal';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { useAppData } from '@/providers/app-data-provider';
 import { speakPrompt } from '@/lib/voice-player';
 import {
   DEFAULT_USER_LOCATION,
   getRealUserLocation,
   matchRidesForUserLocation,
+  geocodePlaceWithOsm,
 } from '@/lib/mandi-location-service';
 import { getAllTransportRides, INITIAL_MAHARASHTRA_RIDES } from '@/lib/transport-store';
 import type { GeoPoint, TransportRide, TransportBooking } from '@/types/transport';
@@ -34,9 +37,15 @@ type FilterTab = 'all' | 'nearby' | 'regional' | 'terminal' | 'pune' | 'nashik';
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
+  const { profile } = useAppData();
 
   const [userLocation, setUserLocation] = useState<GeoPoint>(DEFAULT_USER_LOCATION);
+  const [isLiveGps, setIsLiveGps] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [customVillageText, setCustomVillageText] = useState('');
+  const [searchingVillage, setSearchingVillage] = useState(false);
+
   const [rides, setRides] = useState<TransportRide[]>(INITIAL_MAHARASHTRA_RIDES);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,10 +64,11 @@ export default function ExploreScreen() {
     async function loadData() {
       try {
         setDetectingLocation(true);
-        const loc = await getRealUserLocation();
+        const loc = await getRealUserLocation(profile?.location);
         if (!mounted) return;
 
         setUserLocation(loc);
+        setIsLiveGps(loc.isLiveGps);
 
         // Fetch DB rides & generate location-tailored rides
         const customDbRides = await getAllTransportRides();
@@ -83,13 +93,14 @@ export default function ExploreScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [profile?.location]);
 
   const handleRefreshLocation = async () => {
     setDetectingLocation(true);
     try {
-      const loc = await getRealUserLocation();
+      const loc = await getRealUserLocation(profile?.location);
       setUserLocation(loc);
+      setIsLiveGps(loc.isLiveGps);
       const customDbRides = await getAllTransportRides();
       const matchedRides = matchRidesForUserLocation(loc);
       const merged = [
@@ -99,6 +110,27 @@ export default function ExploreScreen() {
       setRides(merged);
     } finally {
       setDetectingLocation(false);
+    }
+  };
+
+  const handleSelectVillage = async (villageName: string) => {
+    setSearchingVillage(true);
+    try {
+      const point = await geocodePlaceWithOsm(villageName);
+      if (point) {
+        setUserLocation(point);
+        setIsLiveGps(false);
+        const customDbRides = await getAllTransportRides();
+        const matchedRides = matchRidesForUserLocation(point);
+        const merged = [
+          ...customDbRides.filter((r) => r.id.startsWith('custom-')),
+          ...matchedRides,
+        ];
+        setRides(merged);
+        setLocationPickerOpen(false);
+      }
+    } finally {
+      setSearchingVillage(false);
     }
   };
 
@@ -209,24 +241,55 @@ export default function ExploreScreen() {
         </View>
 
         {/* Real User Location Match Banner */}
-        <View style={styles.locationCard}>
+        <Pressable
+          style={styles.locationCard}
+          onPress={() => setLocationPickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change or refresh location">
           <View style={styles.locationCardLeft}>
-            <View style={styles.locationGpsDot} />
+            <View
+              style={[
+                styles.locationGpsDot,
+                isLiveGps ? styles.dotLiveGps : styles.dotCachedGps,
+              ]}
+            />
             <View style={styles.locationTextWrap}>
-              <Text style={styles.locationTitle} numberOfLines={1}>
-                {userLocation.name}
-              </Text>
-              <Text style={styles.locationSubtitle}>
-                {language === 'mr'
-                  ? 'ओपन मॅप्सने जवळपासच्या व मोठ्या बाजार समित्या शोधल्या'
-                  : 'Matched with Mandis using OpenStreetMap routing'}
+              <View style={styles.locationHeaderRow}>
+                <Text style={styles.locationTitle} numberOfLines={1}>
+                  {userLocation.name}
+                </Text>
+                <View
+                  style={[
+                    styles.gpsBadge,
+                    isLiveGps ? styles.gpsBadgeLive : styles.gpsBadgeManual,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.gpsBadgeText,
+                      isLiveGps ? styles.gpsBadgeTextLive : styles.gpsBadgeTextManual,
+                    ]}>
+                    {isLiveGps ? '● LIVE GPS' : '📍 LOCATION'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.locationSubtitle} numberOfLines={1}>
+                {isLiveGps
+                  ? language === 'mr'
+                    ? 'थेट फोन GPS द्वारे बाजार जोडले (बदलण्यासाठी टॅप करा)'
+                    : 'Matched via phone live GPS (Tap to change)'
+                  : language === 'mr'
+                    ? 'स्थान बदलण्यासाठी किंवा थेट GPS घेण्यासाठी येथे टॅप करा'
+                    : 'Tap to refresh GPS or select your village'}
               </Text>
             </View>
           </View>
 
           <Pressable
             style={styles.locationRefreshBtn}
-            onPress={handleRefreshLocation}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleRefreshLocation();
+            }}
             accessibilityRole="button"
             accessibilityLabel="Refresh GPS location">
             {detectingLocation ? (
@@ -235,7 +298,7 @@ export default function ExploreScreen() {
               <AppIcon name={Icons.location} size={15} color={Brand.ink} />
             )}
           </Pressable>
-        </View>
+        </Pressable>
 
         {/* Latest Booking Banner if any */}
         {latestBooking && (
@@ -422,6 +485,103 @@ export default function ExploreScreen() {
         />
       </View>
 
+      {/* Location Picker / GPS Modal */}
+      <Modal
+        visible={locationPickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLocationPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>
+                {language === 'mr' ? 'तुमचे स्थान निवडा' : 'Select Your Location'}
+              </Text>
+              <Pressable
+                onPress={() => setLocationPickerOpen(false)}
+                style={styles.pickerCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close location picker">
+                <AppIcon name={Icons.close} size={15} color={Brand.ink} />
+              </Pressable>
+            </View>
+
+            {/* Live GPS button */}
+            <Pressable
+              style={styles.useGpsBtn}
+              onPress={() => {
+                handleRefreshLocation();
+                setLocationPickerOpen(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Use live GPS location">
+              <View style={styles.useGpsIcon}>
+                <AppIcon name={Icons.location} size={16} color="#0E9F6E" />
+              </View>
+              <View style={styles.useGpsTextWrap}>
+                <Text style={styles.useGpsTitle}>
+                  {language === 'mr' ? '🎯 थेट GPS स्थान वापरा (Live GPS)' : '🎯 Use Live Phone GPS'}
+                </Text>
+                <Text style={styles.useGpsSub}>
+                  {language === 'mr'
+                    ? 'चालू GPS द्वारे जवळच्या बाजार समित्यांचे अंतर मोजा'
+                    : 'Detect current location and recalculate distance to all Mandis'}
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* Custom search village with OpenStreetMap */}
+            <View style={styles.pickerSearchWrap}>
+              <AppIcon name={Icons.search} size={16} color={Brand.inkMuted} />
+              <TextInput
+                value={customVillageText}
+                onChangeText={setCustomVillageText}
+                placeholder={
+                  language === 'mr'
+                    ? 'गावाचे किंवा तालुक्याचे नाव शोधा...'
+                    : 'Search village, taluka, or city...'
+                }
+                placeholderTextColor={Brand.inkFaint}
+                onSubmitEditing={() => {
+                  if (customVillageText.trim().length > 1) {
+                    handleSelectVillage(customVillageText.trim());
+                  }
+                }}
+                returnKeyType="search"
+                style={styles.pickerSearchInput}
+              />
+              {searchingVillage && <ActivityIndicator size="small" color={Brand.ink} />}
+            </View>
+
+            {/* Popular quick villages/cities */}
+            <Text style={styles.quickLabel}>
+              {language === 'mr' ? 'लोकप्रिय गावे / शहरे (Quick Select):' : 'Popular Regions:'}
+            </Text>
+            <View style={styles.quickChipsWrap}>
+              {[
+                'पुणे (Pune)',
+                'बारामती (Baramati)',
+                'संगमनेर (Sangamner)',
+                'जुन्नर (Junnar)',
+                'नाशिक (Nashik)',
+                'कोल्हापूर (Kolhapur)',
+                'सांगली (Sangli)',
+                'नवी मुंबई / वाशी (Vashi)',
+                'अहमदनगर (Ahmednagar)',
+                'सोलापूर (Solapur)',
+              ].map((name) => (
+                <Pressable
+                  key={name}
+                  style={styles.quickChip}
+                  onPress={() => handleSelectVillage(name.split('(')[0].trim())}>
+                  <Text style={styles.quickChipText}>{name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Book Space Modal */}
       <BookRideModal
         ride={selectedRideForBooking}
@@ -538,15 +698,47 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  dotLiveGps: {
     backgroundColor: '#10B981',
+  },
+  dotCachedGps: {
+    backgroundColor: '#3B82F6',
   },
   locationTextWrap: {
     flex: 1,
+  },
+  locationHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   locationTitle: {
     fontSize: 12,
     fontWeight: '700',
     color: Brand.ink,
+    flexShrink: 1,
+  },
+  gpsBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  gpsBadgeLive: {
+    backgroundColor: '#DEF7EC',
+  },
+  gpsBadgeManual: {
+    backgroundColor: '#E0E7FF',
+  },
+  gpsBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  gpsBadgeTextLive: {
+    color: '#0E9F6E',
+  },
+  gpsBadgeTextManual: {
+    color: '#3730A3',
   },
   locationSubtitle: {
     fontSize: 10,
@@ -708,5 +900,108 @@ const styles = StyleSheet.create({
     color: Brand.inkMuted,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(22, 19, 31, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: Brand.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 14,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Brand.ink,
+  },
+  pickerCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Brand.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  useGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DEF7EC',
+    borderRadius: 14,
+    padding: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#31C48D',
+  },
+  useGpsIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  useGpsTextWrap: {
+    flex: 1,
+  },
+  useGpsTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#03543F',
+  },
+  useGpsSub: {
+    fontSize: 10,
+    color: '#046C4E',
+    marginTop: 2,
+  },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Brand.surfaceMuted,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    height: '100%',
+    color: Brand.ink,
+    fontSize: 13,
+    paddingVertical: 0,
+    ...Platform.select({ web: { outlineStyle: 'solid' as const, outlineWidth: 0 } }),
+  },
+  quickLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Brand.inkMuted,
+    textTransform: 'uppercase',
+  },
+  quickChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  quickChip: {
+    backgroundColor: Brand.surfaceMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 19, 31, 0.08)',
+  },
+  quickChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Brand.ink,
   },
 });

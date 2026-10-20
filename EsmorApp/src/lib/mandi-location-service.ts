@@ -174,46 +174,155 @@ export function categorizeMandiDistance(distanceKm: number): MandiDistanceCatego
 }
 
 /**
- * Attempt to obtain real user coordinates via expo-location.
- * Gracefully falls back to default Maharashtra coordinates.
+ * Reverse geocode coordinates to a clean place name.
+ * Tries expo-location first, and falls back to OpenStreetMap Nominatim.
  */
-export async function getRealUserLocation(): Promise<GeoPoint> {
+export async function reverseGeocodeUser(lat: number, lon: number): Promise<string> {
   try {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status === 'granted') {
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      let placeName = 'माझे गाव (My Village)';
-      try {
-        const [geo] = await Location.reverseGeocodeAsync({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-        if (geo) {
-          const parts = [geo.name, geo.district || geo.city, geo.region].filter(Boolean);
-          if (parts.length > 0) {
-            placeName = parts.slice(0, 2).join(', ');
-          }
-        }
-      } catch {
-        // Fallback to coordinates string if reverse geocoding is unavailable
-        placeName = `स्थान (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`;
+    const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+    if (geo) {
+      const parts = [geo.name, geo.district || geo.city || geo.subregion, geo.region].filter(Boolean);
+      if (parts.length > 0) {
+        return parts.slice(0, 2).join(', ');
       }
-
-      return {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        name: placeName,
-        district: 'Maharashtra',
-      };
     }
   } catch (err) {
-    console.warn('Could not read GPS location, using Maharashtra default:', err);
+    console.warn('Native reverseGeocode failed, trying OpenStreetMap Nominatim:', err);
   }
 
-  return DEFAULT_USER_LOCATION;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'EsmorApp/1.0' },
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const primary = addr.village || addr.town || addr.city || addr.suburb || addr.hamlet;
+      const secondary = addr.county || addr.state_district || addr.state;
+      if (primary && secondary) {
+        return `${primary}, ${secondary}`;
+      }
+      if (primary) return primary;
+      if (data.display_name) {
+        return data.display_name.split(',').slice(0, 2).join(',').trim();
+      }
+    }
+  } catch (err) {
+    console.warn('OSM Nominatim reverse geocode failed:', err);
+  }
+
+  return `स्थान (${lat.toFixed(3)}, ${lon.toFixed(3)})`;
+}
+
+/**
+ * Geocode a custom village or city query using OpenStreetMap Nominatim.
+ */
+export async function geocodePlaceWithOsm(query: string): Promise<GeoPoint | null> {
+  if (!query || query.trim().length < 2) return null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+      query.trim() + ', Maharashtra, India'
+    )}&format=json&limit=1`;
+
+    const res = await fetch(searchUrl, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'EsmorApp/1.0' },
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const item = data[0];
+        const lat = parseFloat(item.lat);
+        const lon = parseFloat(item.lon);
+        if (!isNaN(lat) && !isNaN(lon)) {
+          const parts = (item.display_name || '').split(',');
+          const shortName = parts.slice(0, 2).join(',').trim() || query;
+          return {
+            latitude: lat,
+            longitude: lon,
+            name: shortName,
+            district: parts[2]?.trim() || 'Maharashtra',
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('OSM Nominatim search failed:', err);
+  }
+  return null;
+}
+
+/**
+ * Actively request real device GPS coordinates.
+ * Prompts user for permission if needed, queries high/balanced accuracy,
+ * reverse geocodes with OpenStreetMap, and supports saved profile fallback.
+ */
+export async function getRealUserLocation(savedProfile?: {
+  latitude: number | null;
+  longitude: number | null;
+  label: string | null;
+} | null): Promise<GeoPoint & { isLiveGps: boolean }> {
+  try {
+    // 1. Actively check & request foreground location permission
+    let perm = await Location.getForegroundPermissionsAsync();
+    if (perm.status !== 'granted') {
+      perm = await Location.requestForegroundPermissionsAsync();
+    }
+
+    if (perm.status === 'granted') {
+      // Try last known position first for instant speed
+      let pos = await Location.getLastKnownPositionAsync();
+
+      // If no last known position or older, get fresh position
+      if (!pos) {
+        pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      }
+
+      if (pos && pos.coords) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const placeName = await reverseGeocodeUser(lat, lon);
+
+        return {
+          latitude: lat,
+          longitude: lon,
+          name: placeName,
+          district: 'Maharashtra',
+          isLiveGps: true,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Could not acquire live GPS location:', err);
+  }
+
+  // 2. Fallback to saved profile location if set
+  if (savedProfile && savedProfile.latitude && savedProfile.longitude) {
+    return {
+      latitude: savedProfile.latitude,
+      longitude: savedProfile.longitude,
+      name: savedProfile.label || 'माझे गाव (Saved Location)',
+      district: 'Maharashtra',
+      isLiveGps: false,
+    };
+  }
+
+  // 3. Fallback to default Maharashtra coordinates
+  return {
+    ...DEFAULT_USER_LOCATION,
+    isLiveGps: false,
+  };
 }
 
 /**
