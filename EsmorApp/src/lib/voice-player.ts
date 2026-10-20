@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { getVoiceAudio } from '@/lib/voice-service';
@@ -9,7 +9,7 @@ import type { VoicePromptKey } from '@/types/voice';
 type Listener = (speaking: boolean) => void;
 const listeners = new Set<Listener>();
 
-let currentSound: Audio.Sound | null = null;
+let currentPlayer: AudioPlayer | null = null;
 let currentWebAudio: HTMLAudioElement | null = null;
 let currentSpeaking = false;
 let currentPlayId = 0;
@@ -36,14 +36,14 @@ export function isSpeaking(): boolean {
 async function stopCurrentAudio(): Promise<void> {
   currentPlayId++;
 
-  if (currentSound) {
+  if (currentPlayer) {
     try {
-      await currentSound.stopAsync();
-      await currentSound.unloadAsync();
+      currentPlayer.pause();
+      currentPlayer.remove();
     } catch {
-      // Sound may already be unloaded
+      // Player may already be released
     }
-    currentSound = null;
+    currentPlayer = null;
   }
 
   if (currentWebAudio) {
@@ -124,12 +124,14 @@ export async function playBase64Audio(
 
   // Native iOS & Android
   try {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-    });
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: 'duckOthers',
+      });
+    } catch {
+      // Audio mode set is best-effort
+    }
 
     const safeId = identifier.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileUri = `${FileSystem.cacheDirectory}voice_${safeId}.wav`;
@@ -145,28 +147,28 @@ export async function playBase64Audio(
       return;
     }
 
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: fileUri },
-      { shouldPlay: true }
-    );
+    const player = createAudioPlayer({ uri: fileUri });
 
     if (currentPlayId !== playId || (reqId !== undefined && reqId !== activeRequestId)) {
-      await sound.unloadAsync();
+      player.remove();
       return;
     }
 
-    currentSound = sound;
+    currentPlayer = player;
 
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (!status.isLoaded) return;
+    player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
         if (currentPlayId === playId) {
           notifySpeaking(false);
-          sound.unloadAsync().catch(() => {});
-          currentSound = null;
+          player.remove();
+          if (currentPlayer === player) {
+            currentPlayer = null;
+          }
         }
       }
     });
+
+    player.play();
   } catch (err) {
     console.warn('Native audio playback error:', err);
     notifySpeaking(false);

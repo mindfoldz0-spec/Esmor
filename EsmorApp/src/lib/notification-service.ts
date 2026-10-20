@@ -17,14 +17,18 @@ export const NOTIFICATION_CHANNEL_ID = 'esmor-default';
 /** Push notifications only exist on the native builds. */
 export const notificationsSupported = true;
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch {
+  // Graceful degradation when running in environments without full native notification support
+}
 
 function readProjectId() {
   const extra = Constants.expoConfig?.extra as
@@ -72,9 +76,6 @@ async function ensureChannel() {
 
   await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
     name: 'Esmor notifications',
-    // The enum is re-exported through a type module, which the import
-    // namespace rule cannot follow.
-    // eslint-disable-next-line import/namespace
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#F0A96B',
