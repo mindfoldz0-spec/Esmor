@@ -157,7 +157,7 @@ const en = {
   'home.openSearch': 'Open search',
 
   'tabs.home': 'Home',
-  'tabs.explore': 'Explore',
+  'tabs.explore': 'Transport',
   'tabs.activity': 'Activity',
   'a11y.tab': '{label} tab',
 
@@ -459,7 +459,7 @@ const hi: TranslationDictionary = {
   'home.openSearch': 'खोज खोलें',
 
   'tabs.home': 'होम',
-  'tabs.explore': 'एक्सप्लोर',
+  'tabs.explore': 'वाहन सेवा',
   'tabs.activity': 'गतिविधि',
   'a11y.tab': '{label} टैब',
 
@@ -755,7 +755,7 @@ const mr: TranslationDictionary = {
   'home.openSearch': 'शोध उघडा',
 
   'tabs.home': 'होम',
-  'tabs.explore': 'एक्सप्लोर',
+  'tabs.explore': 'वाहतूक',
   'tabs.activity': 'ॲक्टिव्हिटी',
   'a11y.tab': '{label} टॅब',
 

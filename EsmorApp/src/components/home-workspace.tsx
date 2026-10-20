@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppIcon, Icons } from '@/components/app-icon';
@@ -23,7 +24,8 @@ type HomeWorkspaceProps = {
  * can see on the home screen.
  */
 export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps) {
-  const { t } = useI18n();
+  const router = useRouter();
+  const { t, language } = useI18n();
   const features = getRoleWorkspaceFeatures(role);
 
   return (
@@ -33,6 +35,38 @@ export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps
         {t('workspace.title', { role: t(ROLE_LABEL_KEYS[role]) })}
       </Text>
       <Text style={styles.subtitle}>{t('workspace.subtitle')}</Text>
+
+      {/* Featured Rural Freight Pooling Banner */}
+      <Pressable
+        style={styles.transportBanner}
+        onPress={() => router.push('/(tabs)/explore')}
+        accessibilityRole="button"
+        accessibilityLabel="Open Rural Freight Transport Pooling">
+        <View style={styles.transportBannerLeft}>
+          <View style={styles.transportBadge}>
+            <Text style={styles.transportBadgeText}>
+              {language === 'mr' ? 'नवीन सुविधा' : language === 'hi' ? 'नई सुविधा' : 'New Feature'}
+            </Text>
+          </View>
+          <Text style={styles.transportBannerTitle}>
+            {language === 'mr'
+              ? 'सामाईक मालवाहतूक (Freight Pooling)'
+              : language === 'hi'
+                ? 'साझा माल ढुलाई (Freight Pooling)'
+                : 'Rural Freight Transport Pooling'}
+          </Text>
+          <Text style={styles.transportBannerDesc}>
+            {language === 'mr'
+              ? 'गावातून थेट बाजारपेठेत ५०% ते ७०% कमी खर्चात माल पाठवा.'
+              : language === 'hi'
+                ? 'गांव से मंडी तक ५०% से ७०% कम खर्च में माल भेजें।'
+                : 'Pool empty vehicle space to local mandis & save 50-70% freight costs.'}
+          </Text>
+        </View>
+        <View style={styles.transportBannerRight}>
+          <Text style={styles.transportIcon}>🚚</Text>
+        </View>
+      </Pressable>
 
       <View style={styles.featureList}>
         {features.map((feature) => (
@@ -236,5 +270,61 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     lineHeight: 16,
     fontWeight: '500',
+  },
+  transportBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 14,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: Brand.accent,
+    shadowColor: Brand.accent,
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  transportBannerLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  transportBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Brand.accentSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  transportBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Brand.accentInk,
+    textTransform: 'uppercase',
+  },
+  transportBannerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Brand.ink,
+    marginBottom: 4,
+  },
+  transportBannerDesc: {
+    fontSize: 12,
+    color: Brand.inkMuted,
+    lineHeight: 17,
+  },
+  transportBannerRight: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Brand.surfaceTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transportIcon: {
+    fontSize: 24,
   },
 });
