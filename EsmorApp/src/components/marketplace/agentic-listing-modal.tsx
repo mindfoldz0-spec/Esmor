@@ -344,11 +344,11 @@ function AgenticListingContent({
                   styles.messageBubble,
                   msg.sender === 'user' ? styles.userBubble : styles.agentBubble,
                 ]}>
-                {msg.sender === 'agent' && (
+                {msg.sender === 'agent' ? (
                   <View style={styles.agentTag}>
                     <Text style={styles.agentTagText}>AI सहाय्यक</Text>
                   </View>
-                )}
+                ) : null}
                 <Text
                   style={[
                     styles.messageText,
@@ -359,17 +359,17 @@ function AgenticListingContent({
               </View>
             ))}
 
-            {isProcessing && (
+            {isProcessing ? (
               <View style={[styles.messageBubble, styles.agentBubble, styles.loadingBubble]}>
                 <ActivityIndicator size="small" color={Brand.ink} />
                 <Text style={styles.loadingText}>
                   {language === 'mr' ? 'बाजार सहाय्यक विचार करत आहे...' : 'Agent is analyzing...'}
                 </Text>
               </View>
-            )}
+            ) : null}
 
             {/* Live Product Draft Card (Appears as user provides details) */}
-            {Boolean(draft.title) && (
+            {Boolean(draft.title) ? (
               <View style={styles.draftCard}>
                 <View style={styles.draftCardHeader}>
                   <View style={styles.draftBadge}>
@@ -377,7 +377,7 @@ function AgenticListingContent({
                       {draft.isReady ? '✅ तयार उत्पादन (Ready)' : '📝 मसुदा (In Progress)'}
                     </Text>
                   </View>
-                  <Text style={styles.draftCategory}>{draft.category.toUpperCase()}</Text>
+                  <Text style={styles.draftCategory}>{(draft.category || 'vegetables').toUpperCase()}</Text>
                 </View>
 
                 <View style={styles.draftBody}>
@@ -392,29 +392,26 @@ function AgenticListingContent({
 
                     <View style={styles.draftPriceRow}>
                       <Text style={styles.draftPrice}>
-                        ₹{draft.price > 0 ? draft.price : '---'}
+                        {`₹${draft.price > 0 ? draft.price : '---'}`}
                       </Text>
-                      <Text style={styles.draftUnit}>/{draft.unit}</Text>
+                      <Text style={styles.draftUnit}>{`/${draft.unit || 'नग'}`}</Text>
                     </View>
 
                     <Text style={styles.draftQty}>
-                      {language === 'mr' ? 'उपलब्ध:' : 'Stock:'}{' '}
-                      <Text style={styles.draftQtyHighlight}>
-                        {draft.quantity > 0 ? `${draft.quantity} ${draft.unit}` : '---'}
-                      </Text>
+                      {`${language === 'mr' ? 'उपलब्ध: ' : 'Stock: '}${draft.quantity > 0 ? `${draft.quantity} ${draft.unit}` : '---'}`}
                     </Text>
 
-                    {draft.suggestedPrice && draft.price === draft.suggestedPrice && (
+                    {Boolean(draft.suggestedPrice && draft.price === draft.suggestedPrice) ? (
                       <View style={styles.mandiSuggestedPill}>
                         <Text style={styles.mandiSuggestedText}>
                           {language === 'mr' ? '★ बाजार समिती प्रमाणित भाव' : '★ Mandi Fair Rate'}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                 </View>
 
-                {draft.isReady && (
+                {draft.isReady ? (
                   <Pressable
                     style={styles.publishBtn}
                     onPress={handlePublish}
@@ -432,31 +429,33 @@ function AgenticListingContent({
                       </>
                     )}
                   </Pressable>
-                )}
+                ) : null}
               </View>
-            )}
+            ) : null}
 
             {/* Suggested Quick Speech Chips */}
-            {messages.length > 0 &&
-              messages[messages.length - 1].suggestedQuickReplies && (
-                <View style={styles.quickRepliesSection}>
-                  <Text style={styles.quickRepliesTitle}>
-                    {language === 'mr' ? 'द्रुत पर्याय (टॅप करा किंवा बोला):' : 'Suggested Replies:'}
-                  </Text>
-                  <View style={styles.chipsRow}>
-                    {messages[messages.length - 1].suggestedQuickReplies?.map((chip) => (
-                      <Pressable
-                        key={chip}
-                        style={styles.quickChip}
-                        onPress={() => handleSendMessage(chip)}
-                        accessibilityRole="button"
-                        accessibilityLabel={chip}>
-                        <Text style={styles.quickChipText}>{chip}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+            {Boolean(
+              messages.length > 0 &&
+              messages[messages.length - 1]?.suggestedQuickReplies?.length
+            ) ? (
+              <View style={styles.quickRepliesSection}>
+                <Text style={styles.quickRepliesTitle}>
+                  {language === 'mr' ? 'द्रुत पर्याय (टॅप करा किंवा बोला):' : 'Suggested Replies:'}
+                </Text>
+                <View style={styles.chipsRow}>
+                  {messages[messages.length - 1].suggestedQuickReplies?.map((chip) => (
+                    <Pressable
+                      key={chip}
+                      style={styles.quickChip}
+                      onPress={() => handleSendMessage(chip)}
+                      accessibilityRole="button"
+                      accessibilityLabel={chip}>
+                      <Text style={styles.quickChipText}>{chip}</Text>
+                    </Pressable>
+                  ))}
                 </View>
-              )}
+              </View>
+            ) : null}
           </ScrollView>
 
           {/* Bottom Conversational Voice/Text Input Bar */}
