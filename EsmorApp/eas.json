@@ -11,6 +11,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SARVAM_API_KEY": "sk_z8zixw3v_DB6HXU0TZCR3fVWM3vtDjb8i"
       }
     },
     "production": {
