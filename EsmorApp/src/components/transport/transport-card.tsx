@@ -19,6 +19,15 @@ const VEHICLE_LABELS: Record<string, { en: string; hi: string; mr: string; icon:
   three_wheeler: { en: '3-Wheeler Cargo', hi: 'मालवाहक ऑटो', mr: 'मालवाहू रिक्षा', icon: '🛺' },
 };
 
+function formatDisplayTime(timeStr: string): string {
+  if (!timeStr) return '';
+  const match = timeStr.match(/\(([^)]+)\)/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return timeStr.trim();
+}
+
 export function TransportCard({ ride, onBookPress }: TransportCardProps) {
   const { language } = useI18n();
   const [speakingThis, setSpeakingThis] = useState(false);
@@ -109,7 +118,9 @@ export function TransportCard({ ride, onBookPress }: TransportCardProps) {
           <Text style={styles.timingLabel}>
             {language === 'mr' ? 'वेळ' : language === 'hi' ? 'समय' : 'Time'}
           </Text>
-          <Text style={styles.timingValue}>{ride.departureTime}</Text>
+          <Text style={styles.timingValue} numberOfLines={1} adjustsFontSizeToFit>
+            {formatDisplayTime(ride.departureTime)}
+          </Text>
         </View>
 
         <View style={styles.timingDivider} />
@@ -118,7 +129,9 @@ export function TransportCard({ ride, onBookPress }: TransportCardProps) {
           <Text style={styles.timingLabel}>
             {language === 'mr' ? 'अंतर' : language === 'hi' ? 'दूरी' : 'Distance'}
           </Text>
-          <Text style={styles.timingValue}>~{ride.estimatedMarketDistanceKm} km</Text>
+          <Text style={styles.timingValue} numberOfLines={1} adjustsFontSizeToFit>
+            ~{ride.estimatedMarketDistanceKm} km
+          </Text>
         </View>
 
         <View style={styles.timingDivider} />
@@ -127,7 +140,7 @@ export function TransportCard({ ride, onBookPress }: TransportCardProps) {
           <Text style={styles.timingLabel}>
             {language === 'mr' ? 'भाडे' : language === 'hi' ? 'किराया' : 'Fare'}
           </Text>
-          <Text style={styles.fareHighlight}>
+          <Text style={styles.fareHighlight} numberOfLines={1} adjustsFontSizeToFit>
             ₹{ride.farePerUnit}
             <Text style={styles.fareUnit}>/{ride.unitType}</Text>
           </Text>
@@ -302,38 +315,44 @@ const styles = StyleSheet.create({
   },
   timingRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Brand.surfaceMuted,
     borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     marginBottom: 12,
   },
   timingItem: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   timingLabel: {
     fontSize: 10,
     color: Brand.inkMuted,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   timingValue: {
     fontSize: 12,
     fontWeight: '700',
     color: Brand.ink,
-    marginTop: 2,
+    marginTop: 3,
+    textAlign: 'center',
   },
   timingDivider: {
     width: 1,
     height: 24,
-    backgroundColor: 'rgba(22, 19, 31, 0.08)',
+    backgroundColor: 'rgba(22, 19, 31, 0.1)',
   },
   fareHighlight: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F9D58',
-    marginTop: 2,
+    marginTop: 3,
+    textAlign: 'center',
   },
   fareUnit: {
     fontSize: 10,

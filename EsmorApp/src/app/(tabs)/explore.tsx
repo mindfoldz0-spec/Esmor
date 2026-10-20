@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
-  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { TransportCard } from '@/components/transport/transport-card';
@@ -19,12 +22,14 @@ import { speakPrompt } from '@/lib/voice-player';
 import { getAllTransportRides, INITIAL_MAHARASHTRA_RIDES } from '@/lib/transport-store';
 import type { TransportRide, TransportBooking } from '@/types/transport';
 
-type FilterTab = 'all' | 'pune' | 'nashik' | 'vashi';
+type FilterTab = 'all' | 'pune' | 'nashik' | 'vashi' | 'sangli';
 
 export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
   const { language } = useI18n();
   const [rides, setRides] = useState<TransportRide[]>(INITIAL_MAHARASHTRA_RIDES);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [selectedRideForBooking, setSelectedRideForBooking] = useState<TransportRide | null>(null);
   const [postModalOpen, setPostModalOpen] = useState(false);
@@ -67,21 +72,40 @@ export default function ExploreScreen() {
   };
 
   const filteredRides = rides.filter((ride) => {
+    // Category pill filter
     if (activeFilter === 'pune') {
-      return ride.toMarket.toLowerCase().includes('पुणे') || ride.toMarket.toLowerCase().includes('pune');
+      const isPune = ride.toMarket.toLowerCase().includes('पुणे') || ride.toMarket.toLowerCase().includes('pune');
+      if (!isPune) return false;
+    } else if (activeFilter === 'nashik') {
+      const isNashik = ride.toMarket.toLowerCase().includes('नाशिक') || ride.toMarket.toLowerCase().includes('nashik');
+      if (!isNashik) return false;
+    } else if (activeFilter === 'vashi') {
+      const isVashi = ride.toMarket.toLowerCase().includes('वाशी') || ride.toMarket.toLowerCase().includes('vashi');
+      if (!isVashi) return false;
+    } else if (activeFilter === 'sangli') {
+      const isSangli = ride.toMarket.toLowerCase().includes('सांगली') || ride.toMarket.toLowerCase().includes('sangli');
+      if (!isSangli) return false;
     }
-    if (activeFilter === 'nashik') {
-      return ride.toMarket.toLowerCase().includes('नाशिक') || ride.toMarket.toLowerCase().includes('nashik');
+
+    // Real-time search query across origin village, destination mandi, district, driver, and pickup hub
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesFrom = ride.fromVillage.toLowerCase().includes(q);
+      const matchesTo = ride.toMarket.toLowerCase().includes(q);
+      const matchesDistrict = ride.district.toLowerCase().includes(q);
+      const matchesDriver = ride.driverName.toLowerCase().includes(q);
+      const matchesHub = ride.pickupHub.toLowerCase().includes(q);
+      if (!matchesFrom && !matchesTo && !matchesDistrict && !matchesDriver && !matchesHub) {
+        return false;
+      }
     }
-    if (activeFilter === 'vashi') {
-      return ride.toMarket.toLowerCase().includes('वाशी') || ride.toMarket.toLowerCase().includes('vashi');
-    }
+
     return true;
   });
 
   return (
     <View style={styles.screen}>
-      <SafeAreaView style={styles.safeArea}>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTitles}>
@@ -153,39 +177,88 @@ export default function ExploreScreen() {
           </View>
         )}
 
-        {/* Route Filter Chips */}
-        <View style={styles.filterRow}>
-          <Pressable
-            style={[styles.filterChip, activeFilter === 'all' && styles.filterChipActive]}
-            onPress={() => setActiveFilter('all')}>
-            <Text style={[styles.filterText, activeFilter === 'all' && styles.filterTextActive]}>
-              {language === 'mr' ? 'सर्व फेऱ्या' : language === 'hi' ? 'सभी फेरियां' : 'All Trips'}
-            </Text>
-          </Pressable>
+        {/* Search Bar for Mandi / Route */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <AppIcon name={Icons.search} size={18} color={Brand.inkMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={
+                language === 'mr'
+                  ? 'बाजार समिती, गाव किंवा जिल्हा शोधा...'
+                  : language === 'hi'
+                    ? 'मंडी, गांव या जिला खोजें...'
+                    : 'Search mandi, village, or route...'
+              }
+              placeholderTextColor={Brand.inkFaint}
+              selectionColor={Brand.accent}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.searchInput}
+              accessibilityLabel="Search transport trips"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable
+                onPress={() => setSearchQuery('')}
+                hitSlop={8}
+                style={styles.searchClearBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search">
+                <AppIcon name={Icons.close} size={14} color={Brand.inkMuted} />
+              </Pressable>
+            )}
+          </View>
+        </View>
 
-          <Pressable
-            style={[styles.filterChip, activeFilter === 'pune' && styles.filterChipActive]}
-            onPress={() => setActiveFilter('pune')}>
-            <Text style={[styles.filterText, activeFilter === 'pune' && styles.filterTextActive]}>
-              {language === 'mr' ? 'पुणे मार्केट' : 'Pune Mandi'}
-            </Text>
-          </Pressable>
+        {/* Route Filter Chips (Smooth horizontal scrollable single line) */}
+        <View style={styles.filterSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollContent}
+            style={styles.filterScrollView}>
+            <Pressable
+              style={[styles.filterChip, activeFilter === 'all' && styles.filterChipActive]}
+              onPress={() => setActiveFilter('all')}>
+              <Text style={[styles.filterText, activeFilter === 'all' && styles.filterTextActive]}>
+                {language === 'mr' ? 'सर्व फेऱ्या' : language === 'hi' ? 'सभी फेरियां' : 'All Trips'}
+              </Text>
+            </Pressable>
 
-          <Pressable
-            style={[styles.filterChip, activeFilter === 'nashik' && styles.filterChipActive]}
-            onPress={() => setActiveFilter('nashik')}>
-            <Text style={[styles.filterText, activeFilter === 'nashik' && styles.filterTextActive]}>
-              {language === 'mr' ? 'नाशिक APMC' : 'Nashik APMC'}
-            </Text>
-          </Pressable>
+            <Pressable
+              style={[styles.filterChip, activeFilter === 'pune' && styles.filterChipActive]}
+              onPress={() => setActiveFilter('pune')}>
+              <Text style={[styles.filterText, activeFilter === 'pune' && styles.filterTextActive]}>
+                {language === 'mr' ? 'पुणे मार्केट' : 'Pune Mandi'}
+              </Text>
+            </Pressable>
 
-          <Pressable
-            style={[styles.filterChip, activeFilter === 'vashi' && styles.filterChipActive]}
-            onPress={() => setActiveFilter('vashi')}>
-            <Text style={[styles.filterText, activeFilter === 'vashi' && styles.filterTextActive]}>
-              {language === 'mr' ? 'वाशी मुंबई' : 'Vashi Mumbai'}
-            </Text>
-          </Pressable>
+            <Pressable
+              style={[styles.filterChip, activeFilter === 'nashik' && styles.filterChipActive]}
+              onPress={() => setActiveFilter('nashik')}>
+              <Text style={[styles.filterText, activeFilter === 'nashik' && styles.filterTextActive]}>
+                {language === 'mr' ? 'नाशिक APMC' : 'Nashik APMC'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.filterChip, activeFilter === 'vashi' && styles.filterChipActive]}
+              onPress={() => setActiveFilter('vashi')}>
+              <Text style={[styles.filterText, activeFilter === 'vashi' && styles.filterTextActive]}>
+                {language === 'mr' ? 'वाशी मुंबई' : 'Vashi Mumbai'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.filterChip, activeFilter === 'sangli' && styles.filterChipActive]}
+              onPress={() => setActiveFilter('sangli')}>
+              <Text style={[styles.filterText, activeFilter === 'sangli' && styles.filterTextActive]}>
+                {language === 'mr' ? 'सांगली मार्केट' : 'Sangli Market'}
+              </Text>
+            </Pressable>
+          </ScrollView>
         </View>
 
         {/* Rides List */}
@@ -198,24 +271,29 @@ export default function ExploreScreen() {
               onBookPress={(r) => setSelectedRideForBooking(r)}
             />
           )}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 115 },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>🚚</Text>
               <Text style={styles.emptyTitle}>
-                {language === 'mr' ? 'या मार्गावर सध्या गाड्या उपलब्ध नाहीत' : 'No trips found for this route'}
+                {language === 'mr'
+                  ? 'या मार्गावर सध्या गाड्या उपलब्ध नाहीत'
+                  : 'No trips found for this search'}
               </Text>
               <Text style={styles.emptySub}>
                 {language === 'mr'
-                  ? 'तुमची स्वतःची गाडी नोंदवून इतरांना सोबत घेऊन उत्पन्न मिळवा.'
-                  : 'Be the first to list your vehicle and earn extra freight income.'}
+                  ? 'तुमची स्वतःची गाडी नोंदवून इतरांना सोबत घेऊन उत्पन्न मिळवा किंवा वेगळा शोध घ्या.'
+                  : 'Try searching another market or post your own vehicle to earn freight income.'}
               </Text>
             </View>
           }
         />
-      </SafeAreaView>
+      </View>
 
       {/* Book Space Modal */}
       <BookRideModal
@@ -244,7 +322,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Brand.background,
   },
-  safeArea: {
+  container: {
     flex: 1,
     width: '100%',
     maxWidth: 640,
@@ -255,7 +333,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 4,
     paddingBottom: 10,
   },
   headerTitles: {
@@ -342,11 +420,54 @@ const styles = StyleSheet.create({
   dismissBtn: {
     padding: 4,
   },
-  filterRow: {
-    flexDirection: 'row',
+  searchContainer: {
     paddingHorizontal: 18,
-    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  searchBar: {
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: Brand.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 19, 31, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 10,
+    shadowColor: '#16131F',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: Brand.ink,
+    fontSize: 14,
+    fontWeight: '500',
+    paddingVertical: 0,
+    ...Platform.select({ web: { outlineStyle: 'solid' as const, outlineWidth: 0 } }),
+  },
+  searchClearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(22, 19, 31, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterSection: {
+    marginBottom: 10,
+  },
+  filterScrollView: {
+    flexGrow: 0,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 18,
     gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   filterChip: {
     backgroundColor: Brand.surface,
@@ -371,8 +492,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 96,
+    paddingTop: 4,
   },
   emptyCard: {
     backgroundColor: Brand.surface,
