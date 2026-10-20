@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
@@ -159,9 +160,106 @@ function AgenticListingContent({
     }
   };
 
+  const handleTakePhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        alert(
+          language === 'mr'
+            ? 'कॅमेरा वापरण्यासाठी परवानगी आवश्यक आहे.'
+            : 'Camera permission is required to take photos.'
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        const photoUri = result.assets[0].uri;
+        setDraft((prev) => ({ ...prev, imageUrl: photoUri }));
+        const agentAck: AgentChatMessage = {
+          id: getNextId('agent-photo'),
+          sender: 'agent',
+          text:
+            language === 'mr'
+              ? 'छान! कॅमेरामधून नवीन फोटो जोडला गेला आहे.'
+              : 'Awesome! New photo added from camera.',
+          suggestedQuickReplies:
+            language === 'mr'
+              ? ['होय, आताच प्रकाशित करा! 🎉', 'भाव बदला']
+              : ['Yes, Publish Now! 🎉', 'Change price'],
+        };
+        setMessages((prev) => [...prev, agentAck]);
+        speakPrompt(
+          getNextId('ack_photo'),
+          language,
+          language === 'mr' ? 'फोटो जोडला गेला आहे.' : 'Photo added successfully.'
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Take photo failed:', err);
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        alert(
+          language === 'mr'
+            ? 'गॅलरीतून फोटो निवडण्यासाठी परवानगी आवश्यक आहे.'
+            : 'Media library permission is required to upload photos.'
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        const photoUri = result.assets[0].uri;
+        setDraft((prev) => ({ ...prev, imageUrl: photoUri }));
+        const agentAck: AgentChatMessage = {
+          id: getNextId('agent-photo'),
+          sender: 'agent',
+          text:
+            language === 'mr'
+              ? 'छान! गॅलरीतून फोटो यशस्वीरीत्या जोडला गेला आहे.'
+              : 'Great! Photo uploaded from gallery successfully.',
+          suggestedQuickReplies:
+            language === 'mr'
+              ? ['होय, आताच प्रकाशित करा! 🎉', 'भाव बदला']
+              : ['Yes, Publish Now! 🎉', 'Change price'],
+        };
+        setMessages((prev) => [...prev, agentAck]);
+        speakPrompt(
+          getNextId('ack_photo'),
+          language,
+          language === 'mr' ? 'फोटो जोडला गेला आहे.' : 'Photo uploaded successfully.'
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Pick image failed:', err);
+    }
+  };
+
   const handleSendMessage = async (textToSend: string) => {
     const text = textToSend.trim();
     if (!text || isProcessing) return;
+
+    if (text === '📷 फोटो काढा' || text === 'Take Photo') {
+      await handleTakePhoto();
+      return;
+    }
+    if (text === '🖼️ फोटो अपलोड करा' || text === 'Upload Photo' || text === 'गॅलरीतून फोटो निवडा') {
+      await handlePickImage();
+      return;
+    }
 
     setInputText('');
 
@@ -381,10 +479,20 @@ function AgenticListingContent({
                 </View>
 
                 <View style={styles.draftBody}>
-                  <Image
-                    source={{ uri: draft.imageUrl || SAMPLE_PHOTO_PRESETS[draft.category] }}
-                    style={styles.draftImage}
-                  />
+                  <View style={styles.imageWrapper}>
+                    <Image
+                      source={{ uri: draft.imageUrl || SAMPLE_PHOTO_PRESETS[draft.category] }}
+                      style={styles.draftImage}
+                    />
+                    <Pressable
+                      style={styles.imageOverlayBtn}
+                      onPress={handlePickImage}
+                      accessibilityRole="button"
+                      accessibilityLabel="Change photo">
+                      <AppIcon name={Icons.camera} size={13} color={Brand.surface} />
+                    </Pressable>
+                  </View>
+
                   <View style={styles.draftDetails}>
                     <Text style={styles.draftTitle} numberOfLines={2}>
                       {draft.title}
@@ -409,6 +517,31 @@ function AgenticListingContent({
                       </View>
                     ) : null}
                   </View>
+                </View>
+
+                {/* Photo Upload Actions */}
+                <View style={styles.photoActionsRow}>
+                  <Pressable
+                    style={styles.photoActionBtn}
+                    onPress={handleTakePhoto}
+                    accessibilityRole="button"
+                    accessibilityLabel="Take Photo with Camera">
+                    <AppIcon name={Icons.camera} size={15} color={Brand.ink} />
+                    <Text style={styles.photoActionBtnText}>
+                      {language === 'mr' ? 'कॅमेरा (फोटो काढा)' : 'Take Photo'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.photoActionBtn}
+                    onPress={handlePickImage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Upload photo from gallery">
+                    <AppIcon name={Icons.photo} size={15} color={Brand.ink} />
+                    <Text style={styles.photoActionBtnText}>
+                      {language === 'mr' ? 'गॅलरी (अपलोड करा)' : 'Upload Photo'}
+                    </Text>
+                  </Pressable>
                 </View>
 
                 {draft.isReady ? (
@@ -657,10 +790,54 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
   },
-  draftImage: {
+  imageWrapper: {
+    position: 'relative',
     width: 76,
     height: 76,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  imageOverlayBtn: {
+    position: 'absolute',
+    bottom: 3,
+    right: 3,
+    backgroundColor: 'rgba(22, 19, 31, 0.75)',
+    width: 24,
+    height: 24,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  photoActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(22, 19, 31, 0.08)',
+  },
+  photoActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Brand.surface,
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(22, 19, 31, 0.1)',
+  },
+  photoActionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Brand.ink,
   },
   draftDetails: {
     flex: 1,

@@ -55,4 +55,6 @@ export const Icons = {
   mic: { ios: 'mic.fill', android: 'mic', web: 'mic' },
   micOff: { ios: 'mic.slash.fill', android: 'mic_off', web: 'mic_off' },
   stop: { ios: 'stop.fill', android: 'stop', web: 'stop' },
+  camera: { ios: 'camera.fill', android: 'photo_camera', web: 'photo_camera' },
+  photo: { ios: 'photo.fill', android: 'image', web: 'image' },
 } satisfies Record<string, SymbolViewProps['name']>;
