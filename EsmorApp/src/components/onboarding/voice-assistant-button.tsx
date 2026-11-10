@@ -20,7 +20,7 @@ type VoiceAssistantButtonProps = {
 
 export function VoiceAssistantButton({ voiceKey }: VoiceAssistantButtonProps) {
   const { isSpeaking, speak, stop, activeKey } = useVoice();
-  const { language } = useI18n();
+  const { t } = useI18n();
 
   const isCurrentActive = isSpeaking && (!voiceKey || activeKey === voiceKey);
   const pulse = useSharedValue(1);
@@ -54,13 +54,10 @@ export function VoiceAssistantButton({ voiceKey }: VoiceAssistantButtonProps) {
 
   const getLabel = () => {
     if (isCurrentActive) {
-      if (language === 'mr') return 'बोलत आहे…';
-      if (language === 'hi') return 'बोल रहा है…';
-      return 'Speaking…';
+      return t('voice.speaking');
     }
-    if (language === 'mr') return 'ऐका';
-    if (language === 'hi') return 'सुनें';
-    return 'Listen';
+
+    return t('voice.listen');
   };
 
   return (
@@ -77,7 +74,7 @@ export function VoiceAssistantButton({ voiceKey }: VoiceAssistantButtonProps) {
         ]}>
         <View style={[styles.iconWrap, isCurrentActive && styles.iconWrapActive]}>
           <AppIcon
-            name={isCurrentActive ? Icons.speaker : Icons.speaker}
+            name={Icons.speaker}
             size={14}
             color={isCurrentActive ? Brand.accentInk : Brand.ink}
           />

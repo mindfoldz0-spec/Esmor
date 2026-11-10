@@ -32,36 +32,60 @@ export function BuyProductModal({
   profile,
   onOrderSuccess,
 }: BuyProductModalProps) {
-  const { language } = useI18n();
+  const { t } = useI18n();
 
   const [quantity, setQuantity] = useState(1);
   const [deliveryAddress, setDeliveryAddress] = useState(profile?.location.label || '');
   const [buyerPhone, setBuyerPhone] = useState(profile?.phone || '');
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Note: the parent passes a `key` derived from the product id so the form
+  // remounts fresh for every product (no stale quantity/address across products).
   if (!product) return null;
 
-  const totalPrice = quantity * product.price;
+  // Never charge for more than the listed stock, even if state drifted.
+  const safeQuantity = Math.min(quantity, Math.max(1, product.quantityAvailable));
+  const totalPrice = safeQuantity * product.price;
+  const phoneDigits = buyerPhone.replace(/\D/g, '');
+  const phoneValid =
+    /^[+0-9\s()-]+$/.test(buyerPhone.trim()) &&
+    phoneDigits.length >= 7 &&
+    phoneDigits.length <= 15;
+  const addressValid = deliveryAddress.trim().length >= 2;
 
   const handleConfirmOrder = async () => {
+    if (!phoneValid) {
+      setError(t('buyModal.phoneError'));
+      return;
+    }
+
+    if (!addressValid) {
+      setError(t('buyModal.addressError'));
+      return;
+    }
+
+    setError(null);
     setSubmitting(true);
     try {
       const order: MarketplaceOrder = {
         id: `order-${Date.now()}`,
         productId: product.id,
         productTitle: product.title,
-        quantity,
+        quantity: safeQuantity,
         unit: product.unit,
         unitPrice: product.price,
         totalPrice,
-        buyerName: profile?.name || 'ग्राहक (Buyer)',
-        buyerPhone: buyerPhone || '+91 98000 00000',
-        deliveryAddress: deliveryAddress || 'स्थानिक वितरण / शेतातून संकलन',
+        buyerName: profile?.name || t('buyModal.defaultBuyer'),
+        buyerPhone: buyerPhone.trim(),
+        deliveryAddress: deliveryAddress.trim(),
         status: 'confirmed',
         orderedAt: new Date().toISOString(),
       };
 
       await createMarketplaceOrder(order);
+      setQuantity(1);
+      setError(null);
       onOrderSuccess(order);
       onClose();
     } catch (err) {
@@ -82,9 +106,7 @@ export function BuyProductModal({
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>
-                {language === 'mr' ? 'खरेदी निश्चित करा' : 'Confirm Purchase'}
-              </Text>
+              <Text style={styles.title}>{t('buyModal.title')}</Text>
               <Text style={styles.sub}>{product.title}</Text>
             </View>
 
@@ -96,9 +118,7 @@ export function BuyProductModal({
           <ScrollView contentContainerStyle={styles.content}>
             {/* Quantity Selector */}
             <View style={styles.qtySection}>
-              <Text style={styles.sectionLabel}>
-                {language === 'mr' ? 'प्रमाण निवडा (Quantity):' : 'Select Quantity:'}
-              </Text>
+              <Text style={styles.sectionLabel}>{t('buyModal.quantityLabel')}</Text>
 
               <View style={styles.counterRow}>
                 <Pressable
@@ -108,7 +128,7 @@ export function BuyProductModal({
                 </Pressable>
 
                 <View style={styles.qtyValueBox}>
-                  <Text style={styles.qtyValue}>{quantity}</Text>
+                  <Text style={styles.qtyValue}>{safeQuantity}</Text>
                   <Text style={styles.qtyUnit}>{product.unit}</Text>
                 </View>
 
@@ -122,13 +142,11 @@ export function BuyProductModal({
 
             {/* Delivery / Address Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
-                {language === 'mr' ? 'वितरण पत्ता / गाव (Delivery Address):' : 'Delivery Address:'}
-              </Text>
+              <Text style={styles.inputLabel}>{t('buyModal.deliveryLabel')}</Text>
               <TextInput
                 value={deliveryAddress}
                 onChangeText={setDeliveryAddress}
-                placeholder={language === 'mr' ? 'तुमचे गाव किंवा पत्ता टाका' : 'Enter village or address'}
+                placeholder={t('buyModal.deliveryPlaceholder')}
                 placeholderTextColor={Brand.inkFaint}
                 style={styles.input}
               />
@@ -136,9 +154,7 @@ export function BuyProductModal({
 
             {/* Phone Number */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
-                {language === 'mr' ? 'संपर्क क्रमांक (Phone Number):' : 'Phone Number:'}
-              </Text>
+              <Text style={styles.inputLabel}>{t('buyModal.phoneLabel')}</Text>
               <TextInput
                 value={buyerPhone}
                 onChangeText={setBuyerPhone}
@@ -152,32 +168,33 @@ export function BuyProductModal({
             {/* Summary Price Box */}
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {language === 'mr' ? 'दर (Unit Rate)' : 'Unit Rate'}
-                </Text>
+                <Text style={styles.summaryLabel}>{t('buyModal.unitRate')}</Text>
                 <Text style={styles.summaryVal}>
                   ₹{product.price} / {product.unit}
                 </Text>
               </View>
 
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {language === 'mr' ? 'एकूण प्रमाण' : 'Quantity'}
-                </Text>
+                <Text style={styles.summaryLabel}>{t('buyModal.quantity')}</Text>
                 <Text style={styles.summaryVal}>
-                  {quantity} {product.unit}
+                  {safeQuantity} {product.unit}
                 </Text>
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>
-                  {language === 'mr' ? 'एकूण देय रक्कम' : 'Total Amount'}
-                </Text>
+                <Text style={styles.totalLabel}>{t('buyModal.total')}</Text>
                 <Text style={styles.totalVal}>₹{totalPrice}</Text>
               </View>
             </View>
+
+            {/* Validation error (shown after a confirm attempt) */}
+            {error ? (
+              <Text style={styles.errorText} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
 
             {/* Confirm Button */}
             <Pressable
@@ -192,9 +209,7 @@ export function BuyProductModal({
                 <>
                   <AppIcon name={Icons.check} size={16} color={Brand.surface} />
                   <Text style={styles.confirmBtnText}>
-                    {language === 'mr'
-                      ? `₹${totalPrice} मध्ये खरेदी निश्चित करा`
-                      : `Confirm Order for ₹${totalPrice}`}
+                    {t('buyModal.confirm', { total: totalPrice })}
                   </Text>
                 </>
               )}
@@ -359,6 +374,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 8,
     marginTop: 6,
+  },
+  errorText: {
+    color: Brand.danger,
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    marginTop: -2,
+    marginLeft: 2,
   },
   confirmBtnText: {
     fontSize: 14,

@@ -30,7 +30,7 @@ function formatDisplayTime(timeStr: string): string {
 }
 
 export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCardProps) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const [speakingThis, setSpeakingThis] = useState(false);
 
   const vehicleInfo = VEHICLE_LABELS[ride.vehicleType] ?? {
@@ -89,10 +89,10 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
                   ride.mandiCategory === 'terminal' && styles.categoryTextTerminal,
                 ]}>
                 {ride.mandiCategory === 'nearby'
-                  ? language === 'mr' ? 'जवळची मंडी' : 'Nearby'
+                  ? t('transportCard.categoryNearby')
                   : ride.mandiCategory === 'regional'
-                    ? language === 'mr' ? 'जिल्हा मंडी' : 'Regional'
-                    : language === 'mr' ? 'मोठी मंडी' : 'Terminal'}
+                    ? t('transportCard.categoryRegional')
+                    : t('transportCard.categoryTerminal')}
               </Text>
             </View>
           )}
@@ -108,7 +108,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
               color={speakingThis ? Brand.surface : Brand.accentInk}
             />
             <Text style={[styles.listenBtnText, speakingThis && styles.listenBtnTextActive]}>
-              {language === 'mr' ? 'ऐका' : language === 'hi' ? 'सुनें' : 'Listen'}
+              {t('transportCard.listen')}
             </Text>
           </Pressable>
         </View>
@@ -119,9 +119,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
         <View style={styles.routePoint}>
           <View style={[styles.dot, styles.dotOrigin]} />
           <View style={styles.routeTextWrap}>
-            <Text style={styles.routeLabel}>
-              {language === 'mr' ? 'निघण्याचे ठिकाण' : language === 'hi' ? 'रवानगी' : 'From'}
-            </Text>
+            <Text style={styles.routeLabel}>{t('transportCard.from')}</Text>
             <Text style={styles.routeTitle}>{ride.fromVillage}</Text>
           </View>
         </View>
@@ -131,9 +129,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
         <View style={styles.routePoint}>
           <View style={[styles.dot, styles.dotDestination]} />
           <View style={styles.routeTextWrap}>
-            <Text style={styles.routeLabel}>
-              {language === 'mr' ? 'पोहोचण्याचे ठिकाण (मार्केट)' : language === 'hi' ? 'गंतव्य (मंडी)' : 'To (Mandi)'}
-            </Text>
+            <Text style={styles.routeLabel}>{t('transportCard.to')}</Text>
             <Text style={styles.routeTitle}>{ride.toMarket}</Text>
           </View>
         </View>
@@ -142,9 +138,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
       {/* Departure, Distance, and Hub Info */}
       <View style={styles.timingRow}>
         <View style={styles.timingItem}>
-          <Text style={styles.timingLabel}>
-            {language === 'mr' ? 'वेळ' : language === 'hi' ? 'समय' : 'Time'}
-          </Text>
+          <Text style={styles.timingLabel}>{t('transportCard.time')}</Text>
           <Text style={styles.timingValue} numberOfLines={1} adjustsFontSizeToFit>
             {formatDisplayTime(ride.departureTime)}
           </Text>
@@ -153,9 +147,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
         <View style={styles.timingDivider} />
 
         <View style={styles.timingItem}>
-          <Text style={styles.timingLabel}>
-            {language === 'mr' ? 'अंतर' : language === 'hi' ? 'दूरी' : 'Distance'}
-          </Text>
+          <Text style={styles.timingLabel}>{t('transportCard.distance')}</Text>
           <Text style={styles.timingValue} numberOfLines={1} adjustsFontSizeToFit>
             ~{ride.estimatedMarketDistanceKm} km
           </Text>
@@ -164,9 +156,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
         <View style={styles.timingDivider} />
 
         <View style={styles.timingItem}>
-          <Text style={styles.timingLabel}>
-            {language === 'mr' ? 'भाडे' : language === 'hi' ? 'किराया' : 'Fare'}
-          </Text>
+          <Text style={styles.timingLabel}>{t('transportCard.fare')}</Text>
           <Text style={styles.fareHighlight} numberOfLines={1} adjustsFontSizeToFit>
             ₹{ride.farePerUnit}
             <Text style={styles.fareUnit}>/{ride.unitType}</Text>
@@ -177,13 +167,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
       {/* Space Availability Gauge */}
       <View style={styles.capacitySection}>
         <View style={styles.capacityHeader}>
-          <Text style={styles.capacityTitle}>
-            {language === 'mr'
-              ? 'उपलब्ध मालवाहतूक जागा'
-              : language === 'hi'
-                ? 'उपलब्ध खाली जगह'
-                : 'Free Cargo Space'}
-          </Text>
+          <Text style={styles.capacityTitle}>{t('transportCard.freeCargoSpace')}</Text>
           <Text style={styles.capacityPercent}>
             {ride.availableCapacityPercent}% ({ride.availableWeightKg} kg)
           </Text>
@@ -215,9 +199,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
           accessibilityRole="button"
           accessibilityLabel="Call driver">
           <AppIcon name={Icons.phone} size={15} color={Brand.ink} />
-          <Text style={styles.callBtnText}>
-            {language === 'mr' ? 'कॉल' : language === 'hi' ? 'कॉल' : 'Call'}
-          </Text>
+          <Text style={styles.callBtnText}>{t('transportCard.call')}</Text>
         </Pressable>
 
         {onTrackPress && (
@@ -227,9 +209,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
             accessibilityRole="button"
             accessibilityLabel="Track vehicle live">
             <AppIcon name={Icons.location} size={15} color={Brand.surface} />
-            <Text style={styles.trackBtnText}>
-              {language === 'mr' ? 'थेट ट्रॅक' : language === 'hi' ? 'लाइव ट्रैक' : 'Track'}
-            </Text>
+            <Text style={styles.trackBtnText}>{t('transportCard.track')}</Text>
           </Pressable>
         )}
 
@@ -238,13 +218,7 @@ export function TransportCard({ ride, onBookPress, onTrackPress }: TransportCard
           onPress={() => onBookPress(ride)}
           accessibilityRole="button"
           accessibilityLabel="Book space in this ride">
-          <Text style={styles.bookBtnText}>
-            {language === 'mr'
-              ? 'जागा बुक करा'
-              : language === 'hi'
-                ? 'जगह बुक करें'
-                : 'Book Space'}
-          </Text>
+          <Text style={styles.bookBtnText}>{t('transportCard.book')}</Text>
         </Pressable>
       </View>
     </View>

@@ -62,15 +62,17 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     if (currentVersion < 2) {
       try {
         await db.execAsync("ALTER TABLE profile ADD COLUMN role TEXT DEFAULT 'farmer'");
-      } catch {
-        // Column might already exist
+      } catch (cause) {
+        // Column already exists in this database — safe to continue.
+        console.warn('Migration: role column already present, skipping ALTER.', cause);
       }
     }
     if (currentVersion < 3) {
       try {
         await db.execAsync("ALTER TABLE profile ADD COLUMN category TEXT DEFAULT 'producer'");
-      } catch {
-        // Column might already exist
+      } catch (cause) {
+        // Column already exists in this database — safe to continue.
+        console.warn('Migration: category column already present, skipping ALTER.', cause);
       }
     }
   }
@@ -98,7 +100,13 @@ function openDatabase() {
 }
 
 export function getDatabase() {
-  databasePromise ??= openDatabase();
+  if (!databasePromise) {
+    // If opening or migrating fails, don't cache the rejection — let callers retry.
+    databasePromise = openDatabase().catch((err) => {
+      databasePromise = null;
+      throw err;
+    });
+  }
   return databasePromise;
 }
 

@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import type { MarketplaceProduct } from '@/types/marketplace';
 
 type ProductCardProps = {
@@ -11,27 +11,26 @@ type ProductCardProps = {
   onBuyPress: (product: MarketplaceProduct) => void;
 };
 
-const CATEGORY_LABELS: Record<string, { mr: string; hi: string; en: string }> = {
-  vegetables: { mr: 'भाजीपाला', hi: 'सब्जियां', en: 'Vegetables' },
-  fruits: { mr: 'फळे', hi: 'फल', en: 'Fruits' },
-  grains: { mr: 'धान्य', hi: 'अनाज', en: 'Grains' },
-  dairy: { mr: 'दुग्ध व गूळ', hi: 'डेयरी व गुड़', en: 'Dairy' },
-  equipment: { mr: 'शेती साहित्य', hi: 'कृषि उपकरण', en: 'Equipment' },
-  kirana: { mr: 'किराणा', hi: 'किराना', en: 'Kirana' },
-  handcrafts: { mr: 'हस्तकला', hi: 'हस्तशिल्प', en: 'Handcrafts' },
+const CATEGORY_LABEL_KEYS: Record<string, TranslationKey> = {
+  vegetables: 'category.vegetables',
+  fruits: 'category.fruits',
+  grains: 'category.grains',
+  dairy: 'category.dairy',
+  equipment: 'category.equipment',
+  kirana: 'category.kirana',
+  handcrafts: 'category.handcrafts',
 };
 
 export function ProductCard({ product, onBuyPress }: ProductCardProps) {
-  const { language } = useI18n();
+  const { t } = useI18n();
 
   const handleCallSeller = () => {
     const cleanPhone = product.sellerPhone.replace(/[^0-9+]/g, '');
     Linking.openURL(`tel:${cleanPhone}`).catch(() => {});
   };
 
-  const catLabel =
-    CATEGORY_LABELS[product.category]?.[language as 'mr' | 'hi' | 'en'] ||
-    product.category;
+  const categoryKey = CATEGORY_LABEL_KEYS[product.category];
+  const catLabel = categoryKey ? t(categoryKey) : product.category;
 
   return (
     <View style={styles.card}>
@@ -43,7 +42,7 @@ export function ProductCard({ product, onBuyPress }: ProductCardProps) {
         </View>
         {product.isOrganic && (
           <View style={styles.organicBadge}>
-            <Text style={styles.organicText}>🌱 {language === 'mr' ? 'सेंद्रिय' : 'Organic'}</Text>
+            <Text style={styles.organicText}>🌱 {t('productCard.organic')}</Text>
           </View>
         )}
       </View>
@@ -59,7 +58,7 @@ export function ProductCard({ product, onBuyPress }: ProductCardProps) {
           <Text style={styles.unit}>/{product.unit}</Text>
           <View style={styles.stockPill}>
             <Text style={styles.stockText}>
-              {language === 'mr' ? 'साठा:' : 'Stock:'} {product.quantityAvailable} {product.unit}
+              {t('productCard.stock')} {product.quantityAvailable} {product.unit}
             </Text>
           </View>
         </View>
@@ -80,9 +79,7 @@ export function ProductCard({ product, onBuyPress }: ProductCardProps) {
             accessibilityRole="button"
             accessibilityLabel="Call seller">
             <AppIcon name={Icons.phone} size={14} color={Brand.ink} />
-            <Text style={styles.callText}>
-              {language === 'mr' ? 'कॉल' : 'Call'}
-            </Text>
+            <Text style={styles.callText}>{t('productCard.call')}</Text>
           </Pressable>
 
           <Pressable
@@ -91,9 +88,7 @@ export function ProductCard({ product, onBuyPress }: ProductCardProps) {
             accessibilityRole="button"
             accessibilityLabel="Buy this product">
             <AppIcon name={Icons.check} size={14} color={Brand.surface} />
-            <Text style={styles.buyText}>
-              {language === 'mr' ? 'खरेदी करा' : 'Buy Now'}
-            </Text>
+            <Text style={styles.buyText}>{t('productCard.buy')}</Text>
           </Pressable>
         </View>
       </View>

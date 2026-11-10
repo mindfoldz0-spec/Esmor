@@ -51,6 +51,13 @@ be used as a fallback instead of changing `app.json`.
 node scripts/push-server.mjs
 ```
 
+> **Security note.** The server is unauthenticated by default so it is easy to
+> try locally. Before exposing it beyond your machine, set `PUSH_SERVER_TOKEN`
+> on the server and the matching `EXPO_PUBLIC_NOTIFICATION_SERVER_TOKEN` in the
+> app — then `/register`, `/tokens` and `/send` require
+> `Authorization: Bearer <token>`. Without a token, anyone who can reach the
+> port can push arbitrary notifications to every registered device.
+
 It listens on port `8787` (change it with `PUSH_SERVER_PORT`) and prints the
 network address to use from a physical device. Point the app at it:
 
@@ -114,7 +121,9 @@ Notifications created by the app are stored locally:
 - `localStorage` key `esmor.notifications.v1` on the web
 
 The **Reset profile** action in the profile screen clears this data together
-with the profile.
+with the profile — including marketplace orders and listings, freight bookings,
+custom rides and the cached voice clips. Scheduled notifications are cancelled
+at the same time.
 
 ## 5. Platform notes
 

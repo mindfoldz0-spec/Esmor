@@ -27,6 +27,19 @@ import {
 
 const PORT = Number(process.env.PUSH_SERVER_PORT ?? 8787);
 const ACCESS_TOKEN = process.env.EXPO_ACCESS_TOKEN ?? null;
+// Optional shared secret. When set, /register, /tokens and /send require
+// "Authorization: Bearer <token>". Set it before exposing the server beyond
+// localhost — without it, anyone who can reach the port can push to your devices.
+const SERVER_TOKEN = process.env.PUSH_SERVER_TOKEN ?? null;
+
+function isAuthorized(request) {
+  if (!SERVER_TOKEN) {
+    return true;
+  }
+
+  const header = request.headers.authorization ?? '';
+  return header === `Bearer ${SERVER_TOKEN}`;
+}
 
 function json(response, status, payload) {
   response.writeHead(status, {
@@ -73,6 +86,12 @@ const server = createServer(async (request, response) => {
 
   if (request.method === 'OPTIONS') {
     json(response, 204, {});
+    return;
+  }
+
+  const protectedPaths = ['/register', '/tokens', '/send'];
+  if (protectedPaths.includes(url.pathname) && !isAuthorized(request)) {
+    json(response, 401, { error: 'Unauthorized. Provide Authorization: Bearer <token>.' });
     return;
   }
 
@@ -159,6 +178,12 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Esmor notification server listening on port ${PORT}`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${lanAddress()}:${PORT}`);
+  console.log('');
+  console.log(
+    SERVER_TOKEN
+      ? '  Auth:    PUSH_SERVER_TOKEN is set; /register, /tokens and /send require a Bearer token.'
+      : '  Auth:    none — set PUSH_SERVER_TOKEN before exposing this beyond localhost!'
+  );
   console.log('');
   console.log('Set EXPO_PUBLIC_NOTIFICATION_SERVER_URL to the network address');
   console.log('so a device can register its push token.');

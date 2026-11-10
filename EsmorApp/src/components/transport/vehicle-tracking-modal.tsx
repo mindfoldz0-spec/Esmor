@@ -15,6 +15,7 @@ import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { fetchOsrmRoadRoute } from '@/lib/mandi-location-service';
 import { speakPrompt } from '@/lib/voice-player';
+import { contentVoiceKey } from '@/lib/voice-service';
 import type { RoutePoint, TrackingPhase, TransportRide } from '@/types/transport';
 
 type VehicleTrackingModalProps = {
@@ -40,7 +41,7 @@ export function VehicleTrackingModal({
   visible,
   onClose,
 }: VehicleTrackingModalProps) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
 
   const [phase, setPhase] = useState<TrackingPhase>('approaching_source');
   const [approachPoints, setApproachPoints] = useState<RoutePoint[]>([]);
@@ -116,6 +117,16 @@ export function VehicleTrackingModal({
   // Active route points for current phase
   const activePoints = phase === 'approaching_source' ? approachPoints : mandiPoints;
 
+  // Refs so the interval callback always sees the latest state without
+  // re-creating the timer on every tick.
+  const progressRef = useRef(progressPercent);
+  const phaseRef = useRef(phase);
+
+  useEffect(() => {
+    progressRef.current = progressPercent;
+    phaseRef.current = phase;
+  });
+
   // Animation ticker for vehicle movement
   useEffect(() => {
     if (!visible || !isPlaying || activePoints.length === 0) {
@@ -125,17 +136,14 @@ export function VehicleTrackingModal({
 
     const intervalMs = 250 / simulationSpeed;
     animRef.current = setInterval(() => {
-      setProgressPercent((prev) => {
-        if (prev >= 98) {
-          // If in phase 1 and completed, switch to phase 2 automatically!
-          if (phase === 'approaching_source') {
-            setPhase('en_route_mandi');
-            return 5;
-          }
-          return 98; // Stay near end of mandi route
-        }
-        return prev + 1;
-      });
+      // When the approach leg completes, automatically continue onto the mandi leg.
+      if (phaseRef.current === 'approaching_source' && progressRef.current >= 98) {
+        setPhase('en_route_mandi');
+        setProgressPercent(5);
+        return;
+      }
+
+      setProgressPercent((prev) => Math.min(98, prev + 1));
     }, intervalMs);
 
     return () => {
@@ -188,14 +196,14 @@ export function VehicleTrackingModal({
       setSpeaking(true);
       const text =
         phase === 'approaching_source'
-          ? language === 'mr'
-            ? `गाडी सध्या तुमच्या संकलन केंद्राकडे येत असून सुमारे ${remainingDistanceKm} किलोमीटर अंतरावर आहे. अंदाजे ${etaMinutes} मिनिटांत पोहोचेल.`
-            : `Vehicle is approaching your pickup hub, approximately ${remainingDistanceKm} km away. Arriving in ${etaMinutes} minutes.`
-          : language === 'mr'
-            ? `गाडी मार्केट यार्डकडे निघाली असून सुरक्षित वेगाने जात आहे. मार्केटपर्यंत ${remainingDistanceKm} किलोमीटर शिल्लक असून अंदाजे ${etaMinutes} मिनिटे लागतील.`
-            : `Vehicle is en route to ${ride.toMarket}. ${remainingDistanceKm} km remaining, arriving in ${etaMinutes} minutes.`;
+          ? t('tracking.voiceApproaching', { distance: remainingDistanceKm, eta: etaMinutes })
+          : t('tracking.voiceEnRoute', {
+              market: ride.toMarket,
+              distance: remainingDistanceKm,
+              eta: etaMinutes,
+            });
 
-      await speakPrompt(`track_${ride.id}_${phase}`, language, text);
+      await speakPrompt(contentVoiceKey(`track_${ride.id}_${phase}`, text), language, text);
     } finally {
       setSpeaking(false);
     }
@@ -214,15 +222,9 @@ export function VehicleTrackingModal({
             <View style={styles.headerLeft}>
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
-                <Text style={styles.liveText}>GPS LIVE</Text>
+                <Text style={styles.liveText}>{t('tracking.liveBadge')}</Text>
               </View>
-              <Text style={styles.headerTitle}>
-                {language === 'mr'
-                  ? 'थेट वाहन ट्रॅकिंग'
-                  : language === 'hi'
-                    ? 'लाइव वाहन ट्रैकिंग'
-                    : 'Live Vehicle Tracking'}
-              </Text>
+              <Text style={styles.headerTitle}>{t('tracking.title')}</Text>
             </View>
 
             <Pressable
@@ -253,7 +255,7 @@ export function VehicleTrackingModal({
                     styles.phaseTabText,
                     phase === 'approaching_source' && styles.phaseTabTextActive,
                   ]}>
-                  {language === 'mr' ? '१. पिकअप पॉईंटकडे' : '1. To Pickup Hub'}
+                  {t('tracking.phaseToPickup')}
                 </Text>
               </Pressable>
 
@@ -271,7 +273,7 @@ export function VehicleTrackingModal({
                     styles.phaseTabText,
                     phase === 'en_route_mandi' && styles.phaseTabTextActive,
                   ]}>
-                  {language === 'mr' ? '२. मार्केट यार्डकडे' : '2. To Mandi'}
+                  {t('tracking.phaseToMandi')}
                 </Text>
               </Pressable>
             </View>
@@ -308,7 +310,9 @@ export function VehicleTrackingModal({
                 onPress={() => setIsPlaying(!isPlaying)}
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause simulation' : 'Play simulation'}>
-                <Text style={styles.playBtnText}>{isPlaying ? '⏸ विराम (Pause)' : '▶ सुरू (Play)'}</Text>
+                <Text style={styles.playBtnText}>
+                  {isPlaying ? t('tracking.pause') : t('tracking.play')}
+                </Text>
               </Pressable>
 
               <View style={styles.speedRow}>
@@ -346,7 +350,7 @@ export function VehicleTrackingModal({
                     styles.voiceBtnText,
                     speaking && styles.voiceBtnTextActive,
                   ]}>
-                  {language === 'mr' ? 'ऐका' : 'Listen'}
+                  {t('tracking.listen')}
                 </Text>
               </Pressable>
             </View>
@@ -354,23 +358,17 @@ export function VehicleTrackingModal({
             {/* Live Metrics Cards: Distance, Speed, ETA */}
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>
-                  {language === 'mr' ? 'शिल्लक अंतर' : 'Remaining'}
-                </Text>
+                <Text style={styles.metricLabel}>{t('tracking.metricRemaining')}</Text>
                 <Text style={styles.metricValue}>{remainingDistanceKm} km</Text>
               </View>
 
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>
-                  {language === 'mr' ? 'अंदाजे वेळ (ETA)' : 'ETA'}
-                </Text>
+                <Text style={styles.metricLabel}>{t('tracking.metricEta')}</Text>
                 <Text style={styles.metricValue}>{etaMinutes} min</Text>
               </View>
 
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>
-                  {language === 'mr' ? 'थेट वेग' : 'Speed'}
-                </Text>
+                <Text style={styles.metricLabel}>{t('tracking.metricSpeed')}</Text>
                 <Text style={styles.metricValueHighlight}>{speedKmH} km/h</Text>
               </View>
             </View>
@@ -381,17 +379,14 @@ export function VehicleTrackingModal({
               <View style={styles.statusTextWrap}>
                 <Text style={styles.statusTitle}>
                   {phase === 'approaching_source'
-                    ? language === 'mr'
-                      ? `गाडी तुमच्या पिकअप पॉईंटकडे येत आहे (${sourceCoords.name.split(',')[0]})`
-                      : `Approaching your pickup hub (${sourceCoords.name.split(',')[0]})`
-                    : language === 'mr'
-                      ? `हायवेवर मार्केट यार्डकडे प्रवास सुरू (${destCoords.name.split(',')[0]})`
-                      : `En route to Mandi on highway (${destCoords.name.split(',')[0]})`}
+                    ? t('tracking.statusApproaching', { place: sourceCoords.name.split(',')[0] })
+                    : t('tracking.statusEnRoute', { place: destCoords.name.split(',')[0] })}
                 </Text>
                 <Text style={styles.statusSub}>
-                  {language === 'mr'
-                    ? `ड्रायव्हर: ${ride.driverName} • ${ride.vehicleNumber}`
-                    : `Driver: ${ride.driverName} • ${ride.vehicleNumber}`}
+                  {t('tracking.driverLine', {
+                    name: ride.driverName,
+                    number: ride.vehicleNumber,
+                  })}
                 </Text>
               </View>
             </View>
@@ -414,9 +409,7 @@ export function VehicleTrackingModal({
                 accessibilityRole="button"
                 accessibilityLabel="Call driver directly">
                 <AppIcon name={Icons.phone} size={15} color={Brand.surface} />
-                <Text style={styles.callDriverText}>
-                  {language === 'mr' ? 'कॉल करा' : 'Call'}
-                </Text>
+                <Text style={styles.callDriverText}>{t('tracking.callDriver')}</Text>
               </Pressable>
             </View>
           </ScrollView>

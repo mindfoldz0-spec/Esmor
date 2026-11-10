@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from 
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { createCustomRide } from '@/lib/transport-store';
 import type { TransportRide, VehicleType, UnitType } from '@/types/transport';
@@ -14,52 +14,64 @@ type PostRideModalProps = {
   onRideCreated: (ride: TransportRide) => void;
 };
 
-const VEHICLES: { type: VehicleType; mr: string; hi: string; en: string; icon: string }[] = [
-  { type: 'tata_ace', mr: 'छोटा हत्ती', hi: 'छोटा हाथी', en: 'Tata Ace', icon: '🚚' },
-  { type: 'bolero_pickup', mr: 'बोलेरो पिकअप', hi: 'बोलेरो पिकअप', en: 'Bolero Pickup', icon: '🛻' },
-  { type: 'tractor', mr: 'ट्रॅक्टर', hi: 'ट्रैक्टर', en: 'Tractor', icon: '🚜' },
-  { type: 'three_wheeler', mr: 'रिक्षा ऑटो', hi: 'थ्री व्हीलर', en: 'Cargo Auto', icon: '🛺' },
+const VEHICLES: { type: VehicleType; labelKey: TranslationKey; icon: string }[] = [
+  { type: 'tata_ace', labelKey: 'postRide.vehicleTataAce', icon: '🚚' },
+  { type: 'bolero_pickup', labelKey: 'postRide.vehicleBolero', icon: '🛻' },
+  { type: 'tractor', labelKey: 'postRide.vehicleTractor', icon: '🚜' },
+  { type: 'three_wheeler', labelKey: 'postRide.vehicleThreeWheeler', icon: '🛺' },
 ];
 
 export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModalProps) {
-  const { language } = useI18n();
+  const { t } = useI18n();
   const { profile } = useAppData();
 
-  const [fromVillage, setFromVillage] = useState(profile?.location?.label || 'स्थानिक गाव (Local Village)');
-  const [toMarket, setToMarket] = useState('बाजार समिती / APMC Mandi');
+  const [fromVillage, setFromVillage] = useState(profile?.location?.label ?? '');
+  const [toMarket, setToMarket] = useState('');
   const [vehicleType, setVehicleType] = useState<VehicleType>('tata_ace');
-  const [vehicleNumber, setVehicleNumber] = useState('MH 12 AB 1234');
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [capacityPercent, setCapacityPercent] = useState(50);
   const [farePerUnit, setFarePerUnit] = useState('120');
   const [unitType, setUnitType] = useState<UnitType>('sack');
-  const [pickupHub, setPickupHub] = useState('गावातील ग्रामपंचायत चौक');
+  const [pickupHub, setPickupHub] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
+    const from = fromVillage.trim();
+    const to = toMarket.trim();
+    const vehicleNo = vehicleNumber.trim();
+
+    if (!from || !to || !vehicleNo) {
+      setError(t('postRide.errorMissingFields'));
+      return;
+    }
+
+    setError(null);
+
     try {
       setLoading(true);
       const newRide: TransportRide = {
         id: `ride-${Date.now()}`,
-        driverName: profile?.name || 'गाडी मालक (Vehicle Owner)',
+        driverName: profile?.name || 'Vehicle Owner',
         driverPhone: profile?.phone || '+91 98000 00000',
         vehicleType,
-        vehicleNumber,
-        fromVillage,
-        toMarket,
+        vehicleNumber: vehicleNo,
+        fromVillage: from,
+        toMarket: to,
         district: 'Maharashtra',
-        departureDate: 'उद्या (Tomorrow)',
-        departureTime: 'सकाळी ०६:०० वा (06:00 AM)',
+        departureDate: 'Tomorrow',
+        departureTime: '06:00 AM',
         availableCapacityPercent: capacityPercent,
         availableWeightKg: Math.round(capacityPercent * 8),
         farePerUnit: Number(farePerUnit) || 100,
         unitType,
         estimatedMarketDistanceKm: 55,
-        pickupHub,
-        isVerified: true,
+        pickupHub: pickupHub.trim() || from,
+        isVerified: false,
         voiceSummary: {
-          mr: `${fromVillage} ते ${toMarket} साठी गाडी उपलब्ध आहे. भाडे ${farePerUnit} रुपये प्रति ${unitType}.`,
-          hi: `${fromVillage} से ${toMarket} के लिए गाड़ी उपलब्ध है। किराया ${farePerUnit} रुपये प्रति ${unitType}।`,
-          en: `Vehicle leaving ${fromVillage} for ${toMarket}. Fare ${farePerUnit} per ${unitType}.`,
+          mr: `${from} ते ${to} साठी गाडी उपलब्ध आहे. भाडे ${farePerUnit} रुपये प्रति ${unitType}.`,
+          hi: `${from} से ${to} के लिए गाड़ी उपलब्ध है। किराया ${farePerUnit} रुपये प्रति ${unitType}।`,
+          en: `Vehicle leaving ${from} for ${to}. Fare ${farePerUnit} per ${unitType}.`,
         },
       };
 
@@ -81,12 +93,8 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
 
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>
-                {language === 'mr' ? 'नवीन गाडी नोंदणी' : language === 'hi' ? 'नई गाड़ी जोड़ें' : 'Share Empty Vehicle Space'}
-              </Text>
-              <Text style={styles.title}>
-                {language === 'mr' ? 'माझी गाडी / फेरी जोडा' : language === 'hi' ? 'अपनी गाड़ी की फेरी जोड़ें' : 'Post Your Trip'}
-              </Text>
+              <Text style={styles.eyebrow}>{t('postRide.eyebrow')}</Text>
+              <Text style={styles.title}>{t('postRide.title')}</Text>
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn}>
               <AppIcon name={Icons.close} size={18} color={Brand.inkMuted} />
@@ -95,13 +103,10 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
 
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {/* Vehicle Type Selector */}
-            <Text style={styles.label}>
-              {language === 'mr' ? 'वाहनाचा प्रकार' : language === 'hi' ? 'वाहन का प्रकार' : 'Vehicle Type'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.vehicleTypeLabel')}</Text>
             <View style={styles.vehicleRow}>
               {VEHICLES.map((v) => {
                 const active = vehicleType === v.type;
-                const label = language === 'mr' ? v.mr : language === 'hi' ? v.hi : v.en;
                 return (
                   <Pressable
                     key={v.type}
@@ -109,7 +114,7 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
                     onPress={() => setVehicleType(v.type)}>
                     <Text style={styles.vehicleIcon}>{v.icon}</Text>
                     <Text style={[styles.vehicleText, active && styles.vehicleTextActive]}>
-                      {label}
+                      {t(v.labelKey)}
                     </Text>
                   </Pressable>
                 );
@@ -117,57 +122,61 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
             </View>
 
             {/* Route Inputs */}
-            <Text style={styles.label}>
-              {language === 'mr' ? 'निघण्याचे ठिकाण (गाव)' : language === 'hi' ? 'रवानगी का स्थान' : 'From (Village)'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.fromLabel')}</Text>
             <TextInput
               style={styles.input}
               value={fromVillage}
-              onChangeText={setFromVillage}
-              placeholder="उदा. बारामती, जुन्नर"
+              onChangeText={(value) => {
+                setFromVillage(value);
+                setError(null);
+              }}
+              placeholder={t('postRide.fromPlaceholder')}
+              placeholderTextColor={Brand.inkFaint}
             />
 
-            <Text style={styles.label}>
-              {language === 'mr' ? 'गंतव्य स्थान (मार्केट / APMC)' : language === 'hi' ? 'मंडी / गंतव्य' : 'Destination (Mandi / Market)'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.toLabel')}</Text>
             <TextInput
               style={styles.input}
               value={toMarket}
-              onChangeText={setToMarket}
-              placeholder="उदा. पुणे मार्केट यार्ड, वाशी APMC"
+              onChangeText={(value) => {
+                setToMarket(value);
+                setError(null);
+              }}
+              placeholder={t('postRide.toPlaceholder')}
+              placeholderTextColor={Brand.inkFaint}
             />
 
-            <Text style={styles.label}>
-              {language === 'mr' ? 'गाडी क्रमांक (Vehicle Number)' : language === 'hi' ? 'गाड़ी नंबर' : 'Vehicle Number'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.vehicleNumberLabel')}</Text>
             <TextInput
               style={styles.input}
               value={vehicleNumber}
-              onChangeText={setVehicleNumber}
+              onChangeText={(value) => {
+                setVehicleNumber(value);
+                setError(null);
+              }}
               placeholder="MH 12 AB 1234"
+              placeholderTextColor={Brand.inkFaint}
               autoCapitalize="characters"
             />
 
             {/* Unit Type Selection */}
-            <Text style={styles.label}>
-              {language === 'mr' ? 'भाडे मोजण्याचे एकक (Unit)' : language === 'hi' ? 'किराया इकाई' : 'Fare Unit'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.unitLabel')}</Text>
             <View style={styles.vehicleRow}>
               {(['sack', 'crate', 'quintal'] as UnitType[]).map((u) => {
                 const active = unitType === u;
-                const label =
+                const unitKey =
                   u === 'sack'
-                    ? language === 'mr' ? 'पोते (Sack)' : language === 'hi' ? 'बोरी' : 'Sack'
+                    ? 'postRide.unitSack'
                     : u === 'crate'
-                      ? language === 'mr' ? 'क्रेट (Crate)' : language === 'hi' ? 'क्रेट' : 'Crate'
-                      : language === 'mr' ? 'क्विंटल (Quintal)' : language === 'hi' ? 'क्विंटल' : 'Quintal';
+                      ? 'postRide.unitCrate'
+                      : 'postRide.unitQuintal';
                 return (
                   <Pressable
                     key={u}
                     style={[styles.vehicleBtn, active && styles.vehicleBtnActive]}
                     onPress={() => setUnitType(u)}>
                     <Text style={[styles.vehicleText, active && styles.vehicleTextActive]}>
-                      {label}
+                      {t(unitKey)}
                     </Text>
                   </Pressable>
                 );
@@ -177,51 +186,52 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
             {/* Fare and Capacity */}
             <View style={styles.splitRow}>
               <View style={styles.splitCol}>
-                <Text style={styles.label}>
-                  {language === 'mr' ? 'प्रति नग भाडे (₹)' : language === 'hi' ? 'किराया (₹)' : 'Fare (₹)'}
-                </Text>
+                <Text style={styles.label}>{t('postRide.fareLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
                   value={farePerUnit}
                   onChangeText={setFarePerUnit}
                   placeholder="120"
+                  placeholderTextColor={Brand.inkFaint}
                 />
               </View>
 
               <View style={styles.splitCol}>
-                <Text style={styles.label}>
-                  {language === 'mr' ? 'रिकामी जागा (%)' : language === 'hi' ? 'खाली जगह (%)' : 'Free Space (%)'}
-                </Text>
+                <Text style={styles.label}>{t('postRide.capacityLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
                   value={String(capacityPercent)}
                   onChangeText={(val) => setCapacityPercent(Number(val) || 0)}
                   placeholder="50"
+                  placeholderTextColor={Brand.inkFaint}
                 />
               </View>
             </View>
 
             {/* Pickup Hub Point */}
-            <Text style={styles.label}>
-              {language === 'mr' ? 'गाव संकलन केंद्र (पिकअप पॉईंट)' : language === 'hi' ? 'पिकअप स्थान' : 'Village Pickup Point'}
-            </Text>
+            <Text style={styles.label}>{t('postRide.pickupLabel')}</Text>
             <TextInput
               style={styles.input}
               value={pickupHub}
               onChangeText={setPickupHub}
-              placeholder="उदा. गावातील दूध डेअरी / मारुती मंदिर"
+              placeholder={t('postRide.pickupPlaceholder')}
+              placeholderTextColor={Brand.inkFaint}
             />
+
+            {error ? (
+              <Text style={styles.errorText} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
 
             <Pressable
               style={[styles.submitBtn, loading && styles.btnDisabled]}
               onPress={handleSubmit}
               disabled={loading}>
               <Text style={styles.submitBtnText}>
-                {loading
-                  ? (language === 'mr' ? 'नोंदणी होत आहे...' : 'Posting...')
-                  : (language === 'mr' ? 'गाडी फेरी प्रकाशित करा' : language === 'hi' ? 'फेरी पोस्ट करें' : 'Publish Trip')}
+                {loading ? t('postRide.postingButton') : t('postRide.publishButton')}
               </Text>
             </Pressable>
           </ScrollView>
@@ -336,13 +346,22 @@ const styles = StyleSheet.create({
   splitCol: {
     flex: 1,
   },
+  errorText: {
+    color: Brand.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 4,
+    marginLeft: 2,
+  },
   submitBtn: {
     backgroundColor: Brand.ink,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 20,
   },
   btnDisabled: {

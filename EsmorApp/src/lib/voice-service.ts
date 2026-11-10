@@ -1,4 +1,5 @@
-import { ensureVoiceCacheSeeded, getCachedVoice, saveCachedVoice } from '@/lib/voice-store';
+import { getBundledVoiceAsset, getCachedVoice, saveCachedVoice } from '@/lib/voice-store';
+import { fetchWithTimeout } from '@/lib/net';
 import type { Language } from '@/i18n/languages';
 import type { VoicePromptKey } from '@/types/voice';
 
@@ -8,8 +9,28 @@ const LANGUAGE_CODE_MAP: Record<Language, string> = {
   en: 'en-IN',
 };
 
-// Initialize SQLite table & seed in background
-ensureVoiceCacheSeeded().catch(() => {});
+/** Deterministic short hash of arbitrary text (djb2), used for voice cache keys. */
+export function hashPromptText(text: string): string {
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Build a stable cache key for a dynamic prompt: identical text reuses the
+ * cache, changed text generates a new entry instead of replaying stale audio.
+ */
+export function contentVoiceKey(base: string, text: string): string {
+  return `${base}:${hashPromptText(text)}`;
+}
+
+export type VoiceSource =
+  /** Pre-generated prompt, shipped as a binary asset. Plays instantly, works offline. */
+  | { kind: 'asset'; asset: number }
+  /** Runtime-generated audio from SQLite/localStorage or freshly synthesized. */
+  | { kind: 'base64'; audio: string };
 
 function getApiKey(): string | null {
   return (
@@ -20,24 +41,32 @@ function getApiKey(): string | null {
 }
 
 /**
- * Fetch or retrieve cached voice audio base64 for a prompt and language.
+ * Resolve the audio for a prompt and language.
  *
- * 1. Checks SQLite / local store (zero network, instant, pre-generated).
- * 2. If not found and fallbackText is provided, calls Sarvam TTS (bulbul:v4-flash)
- *    and caches the audio in SQLite for future plays.
+ * 1. Bundled asset (pre-generated, zero network, zero cost).
+ * 2. SQLite / localStorage cache of previous Sarvam TTS generations.
+ * 3. Sarvam TTS (bulbul:v4-flash), cached for future plays.
  */
-export async function getVoiceAudio(
+export async function getVoiceSource(
   voiceKey: VoicePromptKey | string,
   language: Language,
   fallbackText?: string
-): Promise<string | null> {
-  // 1. Try SQLite / local cache
-  const cached = await getCachedVoice(voiceKey, language);
-  if (cached) {
-    return cached;
+): Promise<VoiceSource | null> {
+  const key = String(voiceKey);
+
+  // 1. Try the bundled asset map first (no JS heap parse, no network)
+  const asset = getBundledVoiceAsset(key, language);
+  if (asset !== null) {
+    return { kind: 'asset', asset };
   }
 
-  // 2. If not found and no text provided to generate, return null
+  // 2. Try the runtime cache (audio generated on a previous run)
+  const cached = await getCachedVoice(key, language);
+  if (cached) {
+    return { kind: 'base64', audio: cached };
+  }
+
+  // 3. Generate on demand if text is available to synthesize
   if (!fallbackText || !fallbackText.trim()) {
     return null;
   }
@@ -51,18 +80,22 @@ export async function getVoiceAudio(
   const langCode = LANGUAGE_CODE_MAP[language] ?? 'hi-IN';
 
   try {
-    const response = await fetch('https://api.sarvam.ai/text-to-speech', {
-      method: 'POST',
-      headers: {
-        'api-subscription-key': apiKey,
-        'Content-Type': 'application/json',
+    const response = await fetchWithTimeout(
+      'https://api.sarvam.ai/text-to-speech',
+      {
+        method: 'POST',
+        headers: {
+          'api-subscription-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: fallbackText,
+          language_code: langCode,
+          model: 'bulbul:v4-flash',
+        }),
       },
-      body: JSON.stringify({
-        text: fallbackText,
-        language_code: langCode,
-        model: 'bulbul:v4-flash',
-      }),
-    });
+      10000
+    );
 
     if (!response.ok) {
       console.warn(`Sarvam TTS error: HTTP ${response.status}`);
@@ -73,9 +106,9 @@ export async function getVoiceAudio(
     const base64Audio = data?.audios?.[0];
 
     if (base64Audio) {
-      // Save in SQLite cache so we never pay or call API for it again!
-      await saveCachedVoice(voiceKey, language, fallbackText, base64Audio);
-      return base64Audio;
+      // Cache so we never pay or call the API for it again.
+      await saveCachedVoice(key, language, fallbackText, base64Audio);
+      return { kind: 'base64', audio: base64Audio };
     }
   } catch (err) {
     console.warn('Could not fetch voice from Sarvam API:', err);

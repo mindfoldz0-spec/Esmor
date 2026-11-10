@@ -6,12 +6,13 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "esmorapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"
     },
     "android": {
       "package": "com.mayur.esmorapp",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -25,7 +26,7 @@
       ]
     },
     "web": {
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -43,6 +44,19 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow Esmor to use your location to complete your profile."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Esmor to access your camera to add product photos.",
+          "photosPermission": "Allow Esmor to access your photos to add product images."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Esmor to use your microphone to record your voice for the listing assistant."
         }
       ],
       [

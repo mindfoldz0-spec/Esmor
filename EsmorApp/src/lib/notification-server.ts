@@ -1,4 +1,7 @@
+import { fetchWithTimeout } from '@/lib/net';
+
 const serverUrl = process.env.EXPO_PUBLIC_NOTIFICATION_SERVER_URL?.trim();
+const serverToken = process.env.EXPO_PUBLIC_NOTIFICATION_SERVER_TOKEN?.trim();
 
 /**
  * The optional notification server that collects device push tokens so a
@@ -32,11 +35,20 @@ export async function registerDeviceWithServer(
   }
 
   try {
-    const response = await fetch(`${baseUrl}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (serverToken) {
+      headers.Authorization = `Bearer ${serverToken}`;
+    }
+
+    const response = await fetchWithTimeout(
+      `${baseUrl}/register`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      },
+      6000
+    );
 
     return response.ok ? 'registered' : 'failed';
   } catch (error) {

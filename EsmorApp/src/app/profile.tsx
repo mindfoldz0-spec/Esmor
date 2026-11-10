@@ -22,6 +22,9 @@ import {
   useNotificationPermissionLabel,
   useNotifications,
 } from '@/providers/notification-provider';
+import { resetMarketplaceData } from '@/lib/marketplace-store';
+import { resetTransportData } from '@/lib/transport-store';
+import { clearVoiceCache } from '@/lib/voice-store';
 import type { Profile } from '@/types/profile';
 
 function formatLocation(profile: Profile) {
@@ -43,7 +46,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { t, language } = useI18n();
   const { profile, resetProfile, changeLanguage } = useAppData();
-  const { clearLocalData } = useNotifications();
+  const { clearLocalData, cancelScheduled } = useNotifications();
   const notificationStatus = useNotificationPermissionLabel();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -104,8 +107,15 @@ export default function ProfileScreen() {
 
     try {
       await resetProfile();
-      // The notification data is local too, so it goes with the profile.
-      await clearLocalData();
+      // Wipe every local store: notification data, scheduled reminders,
+      // marketplace listings/orders, freight bookings and the voice cache.
+      await Promise.allSettled([
+        clearLocalData(),
+        cancelScheduled(),
+        resetMarketplaceData(),
+        resetTransportData(),
+        clearVoiceCache(),
+      ]);
       // The protected root stack takes over and returns to onboarding.
     } catch (cause) {
       console.warn('Could not reset the local profile.', cause);
@@ -169,6 +179,17 @@ export default function ProfileScreen() {
         setNotice(null);
         setActionError(null);
         setLanguageOpen(true);
+      },
+    },
+    {
+      id: 'orders',
+      label: t('profile.ordersTitle'),
+      subtitle: t('profile.ordersSubtitle'),
+      icon: Icons.wallet,
+      onPress: () => {
+        setNotice(null);
+        setActionError(null);
+        router.push('/orders');
       },
     },
     {

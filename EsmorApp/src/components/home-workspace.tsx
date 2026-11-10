@@ -25,7 +25,7 @@ type HomeWorkspaceProps = {
  */
 export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps) {
   const router = useRouter();
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const features = getRoleWorkspaceFeatures(role);
 
   return (
@@ -44,24 +44,10 @@ export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps
         accessibilityLabel="Open Rural Freight Transport Pooling">
         <View style={styles.transportBannerLeft}>
           <View style={styles.transportBadge}>
-            <Text style={styles.transportBadgeText}>
-              {language === 'mr' ? 'नवीन सुविधा' : language === 'hi' ? 'नई सुविधा' : 'New Feature'}
-            </Text>
+            <Text style={styles.transportBadgeText}>{t('home.bannerTransportBadge')}</Text>
           </View>
-          <Text style={styles.transportBannerTitle}>
-            {language === 'mr'
-              ? 'सामाईक मालवाहतूक (Freight Pooling)'
-              : language === 'hi'
-                ? 'साझा माल ढुलाई (Freight Pooling)'
-                : 'Rural Freight Transport Pooling'}
-          </Text>
-          <Text style={styles.transportBannerDesc}>
-            {language === 'mr'
-              ? 'गावातून थेट बाजारपेठेत ५०% ते ७०% कमी खर्चात माल पाठवा.'
-              : language === 'hi'
-                ? 'गांव से मंडी तक ५०% से ७०% कम खर्च में माल भेजें।'
-                : 'Pool empty vehicle space to local mandis & save 50-70% freight costs.'}
-          </Text>
+          <Text style={styles.transportBannerTitle}>{t('home.bannerTransportTitle')}</Text>
+          <Text style={styles.transportBannerDesc}>{t('home.bannerTransportDesc')}</Text>
         </View>
         <View style={styles.transportBannerRight}>
           <Text style={styles.transportIcon}>🚚</Text>
@@ -76,24 +62,10 @@ export function HomeWorkspace({ role, onSharedFeaturePress }: HomeWorkspaceProps
         accessibilityLabel="Open Rural Marketplace">
         <View style={styles.transportBannerLeft}>
           <View style={styles.marketBadge}>
-            <Text style={styles.marketBadgeText}>
-              {language === 'mr' ? 'AI बाजारपेठ' : language === 'hi' ? 'AI बाजार' : 'Voice Market'}
-            </Text>
+            <Text style={styles.marketBadgeText}>{t('home.bannerMarketplaceBadge')}</Text>
           </View>
-          <Text style={styles.transportBannerTitle}>
-            {language === 'mr'
-              ? 'ग्रामीण बाजारपेठ (Rural Marketplace)'
-              : language === 'hi'
-                ? 'ग्रामीण बाजार (Rural Marketplace)'
-                : 'Rural Marketplace (Voice AI)'}
-          </Text>
-          <Text style={styles.transportBannerDesc}>
-            {language === 'mr'
-              ? 'बोलून उत्पादन जोडा किंवा शेतकऱ्यांकडून थेट ताजी उत्पादने खरेदी करा.'
-              : language === 'hi'
-                ? 'बोलकर उत्पाद जोड़ें या सीधे किसानों से ताजा सामान खरीदें।'
-                : 'List items by speaking with AI or buy directly from local farmers.'}
-          </Text>
+          <Text style={styles.transportBannerTitle}>{t('home.bannerMarketplaceTitle')}</Text>
+          <Text style={styles.transportBannerDesc}>{t('home.bannerMarketplaceDesc')}</Text>
         </View>
         <View style={styles.marketBannerRight}>
           <Text style={styles.transportIcon}>🛍️</Text>

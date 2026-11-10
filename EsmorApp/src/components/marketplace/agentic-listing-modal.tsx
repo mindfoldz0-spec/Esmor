@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -21,6 +22,7 @@ import { askListingAgent } from '@/lib/groq-agent-service';
 import { addMarketplaceProduct } from '@/lib/marketplace-store';
 import { SpeechToTextController } from '@/lib/stt-service';
 import { speakPrompt, stopVoice } from '@/lib/voice-player';
+import { contentVoiceKey } from '@/lib/voice-service';
 import type { AgentChatMessage, ListingDraft, MarketplaceProduct, ProductCategory } from '@/types/marketplace';
 import type { Profile } from '@/types/profile';
 
@@ -47,30 +49,6 @@ function getNextId(prefix: string): string {
   return `${prefix}-${msgCounter}`;
 }
 
-function getInitialGreeting(language: string): string {
-  if (language === 'mr') {
-    return 'नमस्कार! मी तुमचा ई-समौर बाजार सहाय्यक आहे. तुम्हाला काय विकायचे आहे? (उदा. "मला १० क्रेट टोमॅटो विकायचे आहेत")';
-  }
-  if (language === 'hi') {
-    return 'नमस्ते! मैं आपका ई-समौर बाजार सहायक हूँ। आप क्या बेचना चाहते हैं? बोलें या लिखें।';
-  }
-  return 'Hello! I am your Esmor Market Agent. What would you like to sell today? Speak or type.';
-}
-
-function getInitialMessages(language: string): AgentChatMessage[] {
-  return [
-    {
-      id: 'msg-init',
-      sender: 'agent',
-      text: getInitialGreeting(language),
-      suggestedQuickReplies:
-        language === 'mr'
-          ? ['मला १० क्रेट टोमॅटो विकायचे आहेत', 'मला २५ बॉक्स आंबे विकायचे आहेत', 'मला १० पोती तांदूळ विकायचा आहे']
-          : ['I want to sell 10 crates of tomatoes', 'I want to sell 25 boxes of mangoes', 'I want to sell 10 sacks of rice'],
-    },
-  ];
-}
-
 export function AgenticListingModal(props: AgenticListingModalProps) {
   if (!props.visible) return null;
   return <AgenticListingContent {...props} />;
@@ -82,12 +60,24 @@ function AgenticListingContent({
   profile,
   onProductCreated,
 }: AgenticListingModalProps) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
 
-  const [messages, setMessages] = useState<AgentChatMessage[]>(() => getInitialMessages(language));
+  const [messages, setMessages] = useState<AgentChatMessage[]>(() => [
+    {
+      id: 'msg-init',
+      sender: 'agent',
+      text: t('agentModal.greeting'),
+      suggestedQuickReplies: [
+        t('agentModal.initialChipTomatoes'),
+        t('agentModal.initialChipMangoes'),
+        t('agentModal.initialChipRice'),
+      ],
+    },
+  ]);
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [draft, setDraft] = useState<ListingDraft>({
     title: '',
     category: 'vegetables',
@@ -116,8 +106,8 @@ function AgenticListingContent({
 
   // Play spoken greeting when agent mounts
   useEffect(() => {
-    speakPrompt('agent_welcome', language, getInitialGreeting(language)).catch(() => {});
-  }, [language]);
+    speakPrompt('agent_welcome', language, t('agentModal.greeting')).catch(() => {});
+  }, [language, t]);
 
   const handleToggleListening = async () => {
     if (isProcessing || isPublishing || isTranscribing) return;
@@ -133,11 +123,7 @@ function AgenticListingContent({
         if (finalText) {
           await handleSendMessage(finalText);
         } else {
-          setInputText(
-            language === 'mr'
-              ? 'आवाज ऐकू आला नाही. कृपया पुन्हा बोला किंवा पर्याय निवडा.'
-              : 'Could not hear voice. Please speak again or select an option.'
-          );
+          setInputText(t('agentModal.couldNotHear'));
         }
       } catch (err) {
         setIsTranscribing(false);
@@ -156,6 +142,8 @@ function AgenticListingContent({
       );
       if (started) {
         setIsListening(true);
+      } else {
+        setInputText(t('agentModal.micPermissionDenied'));
       }
     }
   };
@@ -164,11 +152,7 @@ function AgenticListingContent({
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        alert(
-          language === 'mr'
-            ? 'कॅमेरा वापरण्यासाठी परवानगी आवश्यक आहे.'
-            : 'Camera permission is required to take photos.'
-        );
+        Alert.alert(t('agentModal.cameraPermissionDenied'));
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -183,21 +167,16 @@ function AgenticListingContent({
         const agentAck: AgentChatMessage = {
           id: getNextId('agent-photo'),
           sender: 'agent',
-          text:
-            language === 'mr'
-              ? 'छान! कॅमेरामधून नवीन फोटो जोडला गेला आहे.'
-              : 'Awesome! New photo added from camera.',
-          suggestedQuickReplies:
-            language === 'mr'
-              ? ['होय, आताच प्रकाशित करा! 🎉', 'भाव बदला']
-              : ['Yes, Publish Now! 🎉', 'Change price'],
+          text: t('agentModal.photoAddedScreen'),
+          suggestedQuickReplies: [
+            t('agentModal.quickYesPublish'),
+            t('agentModal.quickChangePrice'),
+          ],
         };
         setMessages((prev) => [...prev, agentAck]);
-        speakPrompt(
-          getNextId('ack_photo'),
-          language,
-          language === 'mr' ? 'फोटो जोडला गेला आहे.' : 'Photo added successfully.'
-        ).catch(() => {});
+        speakPrompt('ack_photo', language, t('agentModal.photoVoiceAdded')).catch(
+          () => {}
+        );
       }
     } catch (err) {
       console.warn('Take photo failed:', err);
@@ -208,11 +187,7 @@ function AgenticListingContent({
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        alert(
-          language === 'mr'
-            ? 'गॅलरीतून फोटो निवडण्यासाठी परवानगी आवश्यक आहे.'
-            : 'Media library permission is required to upload photos.'
-        );
+        Alert.alert(t('agentModal.galleryPermissionDenied'));
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -227,21 +202,16 @@ function AgenticListingContent({
         const agentAck: AgentChatMessage = {
           id: getNextId('agent-photo'),
           sender: 'agent',
-          text:
-            language === 'mr'
-              ? 'छान! गॅलरीतून फोटो यशस्वीरीत्या जोडला गेला आहे.'
-              : 'Great! Photo uploaded from gallery successfully.',
-          suggestedQuickReplies:
-            language === 'mr'
-              ? ['होय, आताच प्रकाशित करा! 🎉', 'भाव बदला']
-              : ['Yes, Publish Now! 🎉', 'Change price'],
+          text: t('agentModal.photoAddedGallery'),
+          suggestedQuickReplies: [
+            t('agentModal.quickYesPublish'),
+            t('agentModal.quickChangePrice'),
+          ],
         };
         setMessages((prev) => [...prev, agentAck]);
-        speakPrompt(
-          getNextId('ack_photo'),
-          language,
-          language === 'mr' ? 'फोटो जोडला गेला आहे.' : 'Photo uploaded successfully.'
-        ).catch(() => {});
+        speakPrompt('ack_photo', language, t('agentModal.photoVoiceAdded')).catch(
+          () => {}
+        );
       }
     } catch (err) {
       console.warn('Pick image failed:', err);
@@ -306,7 +276,7 @@ function AgenticListingContent({
       setMessages((prev) => [...prev, agentMsg]);
 
       // Speak agent reply in audio
-      speakPrompt(getNextId('agent_reply'), language, response.replyText).catch(() => {});
+      speakPrompt(contentVoiceKey('agent_reply', response.replyText), language, response.replyText).catch(() => {});
 
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
@@ -319,6 +289,7 @@ function AgenticListingContent({
   const handlePublish = async () => {
     if (!draft.title || !draft.price || !draft.quantity) return;
 
+    setPublishError(null);
     setIsPublishing(true);
     try {
       const newProduct: MarketplaceProduct = {
@@ -331,11 +302,11 @@ function AgenticListingContent({
         quantityAvailable: draft.quantity,
         imageUrl: draft.imageUrl || SAMPLE_PHOTO_PRESETS[draft.category],
         sellerId: profile?.phone || 'seller-me',
-        sellerName: profile?.name || 'माझे शेत (Producer)',
+        sellerName: profile?.name || t('agentModal.defaultSellerName'),
         sellerPhone: profile?.phone || '+91 98220 12345',
-        sellerVillage: profile?.location.label || 'माझे गाव / तालुका',
+        sellerVillage: profile?.location.label || t('agentModal.defaultSellerVillage'),
         district: 'Maharashtra',
-        description: draft.description || `${draft.title} थेट शेतकऱ्याकडून उपलब्ध.`,
+        description: draft.description || t('agentModal.defaultDescription', { title: draft.title }),
         isOrganic: true,
         createdAt: new Date().toISOString(),
       };
@@ -343,15 +314,13 @@ function AgenticListingContent({
       await addMarketplaceProduct(newProduct);
       onProductCreated(newProduct);
 
-      const congrats =
-        language === 'mr'
-          ? `अभिनंदन! तुमचे उत्पादन '${draft.title}' बाजारपेठेत यशस्वीरीत्या प्रकाशित झाले आहे!`
-          : `Congratulations! Your product '${draft.title}' is now listed on the marketplace!`;
+      const congrats = t('agentModal.congratsPublish', { title: draft.title });
 
-      await speakPrompt('agent_congrats', language, congrats);
+      await speakPrompt(contentVoiceKey('agent_congrats', congrats), language, congrats);
       onClose();
     } catch (err) {
       console.error('Failed to publish product:', err);
+      setPublishError(t('agentModal.publishError'));
     } finally {
       setIsPublishing(false);
     }
@@ -374,12 +343,8 @@ function AgenticListingContent({
                 <AppIcon name={Icons.sparkle} size={16} color={Brand.surface} />
               </View>
               <View>
-                <Text style={styles.headerTitle}>
-                  {language === 'mr' ? 'ई-समौर बाजार सहाय्यक' : 'Esmor Market Agent'}
-                </Text>
-                <Text style={styles.headerSub}>
-                  {language === 'mr' ? 'बोलून उत्पादन जोडा (Groq AI Powered)' : 'Voice-assisted product listing'}
-                </Text>
+                <Text style={styles.headerTitle}>{t('agentModal.headerTitle')}</Text>
+                <Text style={styles.headerSub}>{t('agentModal.headerSub')}</Text>
               </View>
             </View>
 
@@ -422,15 +387,17 @@ function AgenticListingContent({
               <View style={styles.heroVoiceInfo}>
                 <Text style={styles.heroVoiceTitle}>
                   {isListening
-                    ? (language === 'mr' ? '🔴 ऐकत आहे... आता बोला' : '🔴 Listening... speak now')
+                    ? t('agentModal.listeningNow')
                     : isTranscribing
-                      ? (language === 'mr' ? '⏳ AI आवाज ओळखत आहे...' : '⏳ AI is transcribing...')
-                      : (language === 'mr' ? 'माईक दाबा आणि बोला' : 'Tap Mic & Speak to Sell')}
+                      ? t('agentModal.transcribing')
+                      : t('agentModal.tapMic')}
                 </Text>
                 <Text style={styles.heroVoiceSub} numberOfLines={2}>
                   {isListening
-                    ? (liveSpokenText ? `"${liveSpokenText}"` : (language === 'mr' ? 'बोलून झाल्यावर पुन्हा माईकवर टॅप करा' : 'Speak now (tap again when finished)'))
-                    : (language === 'mr' ? 'उदा. "मला १० क्रेट टोमॅटो विकायचे आहेत"' : 'e.g. "I want to sell 10 crates of tomatoes"')}
+                    ? liveSpokenText
+                      ? `"${liveSpokenText}"`
+                      : t('agentModal.listenHint')
+                    : t('agentModal.idleExample')}
                 </Text>
               </View>
             </View>
@@ -444,7 +411,7 @@ function AgenticListingContent({
                 ]}>
                 {msg.sender === 'agent' ? (
                   <View style={styles.agentTag}>
-                    <Text style={styles.agentTagText}>AI सहाय्यक</Text>
+                    <Text style={styles.agentTagText}>{t('agentModal.aiTag')}</Text>
                   </View>
                 ) : null}
                 <Text
@@ -460,9 +427,7 @@ function AgenticListingContent({
             {isProcessing ? (
               <View style={[styles.messageBubble, styles.agentBubble, styles.loadingBubble]}>
                 <ActivityIndicator size="small" color={Brand.ink} />
-                <Text style={styles.loadingText}>
-                  {language === 'mr' ? 'बाजार सहाय्यक विचार करत आहे...' : 'Agent is analyzing...'}
-                </Text>
+                <Text style={styles.loadingText}>{t('agentModal.analyzing')}</Text>
               </View>
             ) : null}
 
@@ -472,7 +437,7 @@ function AgenticListingContent({
                 <View style={styles.draftCardHeader}>
                   <View style={styles.draftBadge}>
                     <Text style={styles.draftBadgeText}>
-                      {draft.isReady ? '✅ तयार उत्पादन (Ready)' : '📝 मसुदा (In Progress)'}
+                      {draft.isReady ? t('agentModal.draftReady') : t('agentModal.draftProgress')}
                     </Text>
                   </View>
                   <Text style={styles.draftCategory}>{(draft.category || 'vegetables').toUpperCase()}</Text>
@@ -506,13 +471,13 @@ function AgenticListingContent({
                     </View>
 
                     <Text style={styles.draftQty}>
-                      {`${language === 'mr' ? 'उपलब्ध: ' : 'Stock: '}${draft.quantity > 0 ? `${draft.quantity} ${draft.unit}` : '---'}`}
+                      {`${t('agentModal.stockLabel')} ${draft.quantity > 0 ? `${draft.quantity} ${draft.unit}` : '---'}`}
                     </Text>
 
                     {Boolean(draft.suggestedPrice && draft.price === draft.suggestedPrice) ? (
                       <View style={styles.mandiSuggestedPill}>
                         <Text style={styles.mandiSuggestedText}>
-                          {language === 'mr' ? '★ बाजार समिती प्रमाणित भाव' : '★ Mandi Fair Rate'}
+                          {t('agentModal.mandiFairRate')}
                         </Text>
                       </View>
                     ) : null}
@@ -527,9 +492,7 @@ function AgenticListingContent({
                     accessibilityRole="button"
                     accessibilityLabel="Take Photo with Camera">
                     <AppIcon name={Icons.camera} size={15} color={Brand.ink} />
-                    <Text style={styles.photoActionBtnText}>
-                      {language === 'mr' ? 'कॅमेरा (फोटो काढा)' : 'Take Photo'}
-                    </Text>
+                    <Text style={styles.photoActionBtnText}>{t('agentModal.takePhoto')}</Text>
                   </Pressable>
 
                   <Pressable
@@ -538,11 +501,15 @@ function AgenticListingContent({
                     accessibilityRole="button"
                     accessibilityLabel="Upload photo from gallery">
                     <AppIcon name={Icons.photo} size={15} color={Brand.ink} />
-                    <Text style={styles.photoActionBtnText}>
-                      {language === 'mr' ? 'गॅलरी (अपलोड करा)' : 'Upload Photo'}
-                    </Text>
+                    <Text style={styles.photoActionBtnText}>{t('agentModal.uploadPhoto')}</Text>
                   </Pressable>
                 </View>
+
+                {publishError ? (
+                  <Text style={styles.publishErrorText} accessibilityLiveRegion="polite">
+                    {publishError}
+                  </Text>
+                ) : null}
 
                 {draft.isReady ? (
                   <Pressable
@@ -556,9 +523,7 @@ function AgenticListingContent({
                     ) : (
                       <>
                         <AppIcon name={Icons.check} size={16} color={Brand.surface} />
-                        <Text style={styles.publishBtnText}>
-                          {language === 'mr' ? 'बाजारपेठेत प्रकाशित करा 🎉' : 'Publish to Marketplace 🎉'}
-                        </Text>
+                        <Text style={styles.publishBtnText}>{t('agentModal.publish')}</Text>
                       </>
                     )}
                   </Pressable>
@@ -572,9 +537,7 @@ function AgenticListingContent({
               messages[messages.length - 1]?.suggestedQuickReplies?.length
             ) ? (
               <View style={styles.quickRepliesSection}>
-                <Text style={styles.quickRepliesTitle}>
-                  {language === 'mr' ? 'द्रुत पर्याय (टॅप करा किंवा बोला):' : 'Suggested Replies:'}
-                </Text>
+                <Text style={styles.quickRepliesTitle}>{t('agentModal.suggestedReplies')}</Text>
                 <View style={styles.chipsRow}>
                   {messages[messages.length - 1].suggestedQuickReplies?.map((chip) => (
                     <Pressable
@@ -597,9 +560,7 @@ function AgenticListingContent({
               value={inputText}
               onChangeText={setInputText}
               placeholder={
-                isListening
-                  ? (language === 'mr' ? 'तुमचा आवाज ऐकत आहे...' : 'Listening to speech...')
-                  : (language === 'mr' ? 'येथे लिहा किंवा माईक दाबा...' : 'Type or tap mic to speak...')
+                isListening ? t('agentModal.inputListening') : t('agentModal.inputIdle')
               }
               placeholderTextColor={isListening ? Brand.danger : Brand.inkFaint}
               onSubmitEditing={() => handleSendMessage(inputText)}
@@ -892,6 +853,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 12,
     gap: 8,
+  },
+  publishErrorText: {
+    color: Brand.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
   },
   publishBtnText: {
     fontSize: 14,

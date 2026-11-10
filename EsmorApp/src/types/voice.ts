@@ -1,5 +1,3 @@
-import type { Language } from '@/i18n/languages';
-
 export type VoicePromptKey =
   | 'language.intro'
   | 'language.select_mr'
@@ -19,11 +17,3 @@ export type VoicePromptKey =
   | 'role.select_kirana'
   | 'role.select_entrepreneur'
   | 'profile.completed';
-
-export type VoiceCacheEntry = {
-  key: string;
-  language: Language;
-  text: string;
-  audioBase64: string;
-  createdAt?: string;
-};

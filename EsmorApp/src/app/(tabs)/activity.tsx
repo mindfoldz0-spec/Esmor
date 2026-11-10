@@ -17,7 +17,7 @@ import { ProductCard } from '@/components/marketplace/product-card';
 import { AgenticListingModal } from '@/components/marketplace/agentic-listing-modal';
 import { BuyProductModal } from '@/components/marketplace/buy-product-modal';
 import { Brand } from '@/constants/theme';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { speakPrompt } from '@/lib/voice-player';
 import {
@@ -32,9 +32,18 @@ import type {
 
 type CategoryFilter = 'all' | ProductCategory;
 
+const CATEGORY_FILTERS: { id: CategoryFilter; labelKey: TranslationKey }[] = [
+  { id: 'all', labelKey: 'category.all' },
+  { id: 'vegetables', labelKey: 'category.vegetables' },
+  { id: 'fruits', labelKey: 'category.fruits' },
+  { id: 'grains', labelKey: 'category.grains' },
+  { id: 'dairy', labelKey: 'category.dairy' },
+  { id: 'equipment', labelKey: 'category.equipment' },
+];
+
 export default function MarketplaceScreen() {
   const insets = useSafeAreaInsets();
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const { profile } = useAppData();
 
   // Producer check: small listing icon is ONLY visible to producers!
@@ -76,12 +85,7 @@ export default function MarketplaceScreen() {
   const handleHeaderVoice = async () => {
     try {
       setSpeakingHeader(true);
-      const text =
-        language === 'mr'
-          ? 'ग्रामीण बाजारपेठेत आपले स्वागत आहे. येथे शेतकरी आणि कारागीर थेट ताजे उत्पादन विकतात. ग्राहक थेट वाजवी दरात खरेदी करू शकतात.'
-          : language === 'hi'
-            ? 'ग्रामीण बाजार में आपका स्वागत है। यहां किसान सीधे अपने उत्पाद बेचते हैं और उपभोक्ता खरीद सकते हैं।'
-            : 'Welcome to the Rural Marketplace. Farmers and artisans sell directly to consumers at fair prices.';
+      const text = t('market.voiceHeader');
 
       await speakPrompt('marketplace_header', language, text);
     } finally {
@@ -114,20 +118,8 @@ export default function MarketplaceScreen() {
         {/* Header Bar */}
         <View style={styles.header}>
           <View style={styles.headerTitles}>
-            <Text style={styles.eyebrow}>
-              {language === 'mr'
-                ? 'थेट शेतकरी व स्थानिक बाजार'
-                : language === 'hi'
-                  ? 'सीधे किसान व स्थानीय बाजार'
-                  : 'Direct Farm Marketplace'}
-            </Text>
-            <Text style={styles.title}>
-              {language === 'mr'
-                ? 'ग्रामीण बाजारपेठ'
-                : language === 'hi'
-                  ? 'ग्रामीण बाजार'
-                  : 'Rural Marketplace'}
-            </Text>
+            <Text style={styles.eyebrow}>{t('market.eyebrow')}</Text>
+            <Text style={styles.title}>{t('market.title')}</Text>
           </View>
 
           <View style={styles.headerActions}>
@@ -153,9 +145,7 @@ export default function MarketplaceScreen() {
                 <View style={styles.micIconCircle}>
                   <AppIcon name={Icons.mic} size={13} color={Brand.surface} />
                 </View>
-                <Text style={styles.agenticListBtnText}>
-                  {language === 'mr' ? '+ विक्री करा' : language === 'hi' ? '+ बेचें' : '+ Sell'}
-                </Text>
+                <Text style={styles.agenticListBtnText}>{t('market.sell')}</Text>
               </Pressable>
             )}
           </View>
@@ -169,14 +159,13 @@ export default function MarketplaceScreen() {
             </View>
             <View style={styles.orderBannerText}>
               <Text style={styles.orderBannerTitle}>
-                {language === 'mr'
-                  ? `खरेदी यशस्वी! ₹${latestOrder.totalPrice}`
-                  : `Order Placed! ₹${latestOrder.totalPrice}`}
+                {t('market.orderBannerTitle', { total: latestOrder.totalPrice })}
               </Text>
               <Text style={styles.orderBannerSub}>
-                {language === 'mr'
-                  ? `${latestOrder.productTitle} (${latestOrder.quantity} ${latestOrder.unit}) नोंदवले गेले आहे.`
-                  : `${latestOrder.quantity} ${latestOrder.unit} confirmed.`}
+                {t('market.orderBannerSub', {
+                  quantity: latestOrder.quantity,
+                  unit: latestOrder.unit,
+                })}
               </Text>
             </View>
             <Pressable onPress={() => setLatestOrder(null)} style={styles.dismissBtn}>
@@ -192,13 +181,7 @@ export default function MarketplaceScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={
-                language === 'mr'
-                  ? 'भाजीपाला, फळे, धान्य किंवा शेतकरी शोधा...'
-                  : language === 'hi'
-                    ? 'सब्जी, फल, अनाज या किसान खोजें...'
-                    : 'Search produce, grains, or seller...'
-              }
+              placeholder={t('market.searchPlaceholder')}
               placeholderTextColor={Brand.inkFaint}
               selectionColor={Brand.accent}
               returnKeyType="search"
@@ -226,14 +209,7 @@ export default function MarketplaceScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoryScrollContent}>
-            {[
-              { id: 'all' as const, mr: 'सर्व (All)', en: 'All' },
-              { id: 'vegetables' as const, mr: 'भाजीपाला 🥦', en: 'Vegetables' },
-              { id: 'fruits' as const, mr: 'फळे 🥭', en: 'Fruits' },
-              { id: 'grains' as const, mr: 'धान्य 🌾', en: 'Grains' },
-              { id: 'dairy' as const, mr: 'दूध व गूळ 🥛', en: 'Dairy' },
-              { id: 'equipment' as const, mr: 'शेती साहित्य 🚜', en: 'Equipment' },
-            ].map((cat) => (
+            {CATEGORY_FILTERS.map((cat) => (
               <Pressable
                 key={cat.id}
                 style={[
@@ -246,7 +222,7 @@ export default function MarketplaceScreen() {
                     styles.categoryChipText,
                     activeCategory === cat.id && styles.categoryChipTextActive,
                   ]}>
-                  {language === 'mr' ? cat.mr : cat.en}
+                  {t(cat.labelKey)}
                 </Text>
               </Pressable>
             ))}
@@ -272,17 +248,9 @@ export default function MarketplaceScreen() {
           ListEmptyComponent={
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>🛍️</Text>
-              <Text style={styles.emptyTitle}>
-                {language === 'mr'
-                  ? 'या प्रकारात सध्या उत्पादने उपलब्ध नाहीत'
-                  : 'No products found'}
-              </Text>
+              <Text style={styles.emptyTitle}>{t('market.emptyTitle')}</Text>
               <Text style={styles.emptySub}>
-                {language === 'mr'
-                  ? isProducer
-                    ? 'वरील "+ विक्री करा" वर टॅप करून तुमचे उत्पादन थेट ग्राहकांना विका.'
-                    : 'वेगळा शोध घ्या किंवा नंतर तपासा.'
-                  : 'Check back later or search for other items.'}
+                {isProducer ? t('market.emptySubProducer') : t('market.emptySubConsumer')}
               </Text>
             </View>
           }
@@ -299,8 +267,9 @@ export default function MarketplaceScreen() {
         }}
       />
 
-      {/* Buy Product Modal */}
+      {/* Buy Product Modal — keyed by product so the form remounts fresh per product */}
       <BuyProductModal
+        key={selectedProductForBuy?.id ?? 'buy'}
         product={selectedProductForBuy}
         visible={selectedProductForBuy !== null}
         onClose={() => setSelectedProductForBuy(null)}

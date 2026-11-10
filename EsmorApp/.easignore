@@ -5,3 +5,9 @@ ios
 dist
 web-build
 *.log
+
+# Never upload local secrets into the EAS build archive
+.env
+.env.local
+.env*.local
+.env.example

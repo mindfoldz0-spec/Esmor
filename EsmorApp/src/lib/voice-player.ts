@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { getVoiceAudio } from '@/lib/voice-service';
+import { getVoiceSource, type VoiceSource } from '@/lib/voice-service';
 import type { Language } from '@/i18n/languages';
 import type { VoicePromptKey } from '@/types/voice';
 
@@ -65,10 +65,12 @@ export async function stopVoice(): Promise<void> {
 }
 
 /**
- * Play raw base64 audio across iOS, Android, and Web.
+ * Play a resolved voice source across iOS, Android, and Web.
+ * Bundled assets go through expo-audio on every platform; base64 audio is
+ * written to a cache file on native and played as a data URI on web.
  */
-export async function playBase64Audio(
-  base64: string,
+export async function playVoiceSource(
+  source: VoiceSource,
   identifier: string,
   reqId?: number
 ): Promise<void> {
@@ -84,6 +86,41 @@ export async function playBase64Audio(
 
   const playId = ++currentPlayId;
   notifySpeaking(true);
+
+  // Bundled asset: expo-audio resolves Metro asset ids on every platform.
+  if (source.kind === 'asset') {
+    try {
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          interruptionMode: 'duckOthers',
+        });
+      } catch {
+        // Audio mode set is best-effort
+      }
+
+      if (currentPlayId !== playId || (reqId !== undefined && reqId !== activeRequestId)) {
+        return;
+      }
+
+      const player = createAudioPlayer(source.asset);
+
+      if (currentPlayId !== playId || (reqId !== undefined && reqId !== activeRequestId)) {
+        player.remove();
+        return;
+      }
+
+      currentPlayer = player;
+      attachEndListener(player, playId);
+      player.play();
+    } catch (err) {
+      console.warn('Asset audio playback error:', err);
+      notifySpeaking(false);
+    }
+    return;
+  }
+
+  const base64 = source.audio;
 
   if (Platform.OS === 'web') {
     try {
@@ -107,7 +144,7 @@ export async function playBase64Audio(
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
-        await playPromise.catch((err) => {
+        await playPromise.catch(() => {
           // Play was interrupted by user tapping another option
           if (currentPlayId === playId) {
             notifySpeaking(false);
@@ -155,19 +192,7 @@ export async function playBase64Audio(
     }
 
     currentPlayer = player;
-
-    player.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) {
-        if (currentPlayId === playId) {
-          notifySpeaking(false);
-          player.remove();
-          if (currentPlayer === player) {
-            currentPlayer = null;
-          }
-        }
-      }
-    });
-
+    attachEndListener(player, playId);
     player.play();
   } catch (err) {
     console.warn('Native audio playback error:', err);
@@ -175,9 +200,24 @@ export async function playBase64Audio(
   }
 }
 
+function attachEndListener(player: AudioPlayer, playId: number) {
+  player.addListener('playbackStatusUpdate', (status) => {
+    if (status.didJustFinish) {
+      if (currentPlayId === playId) {
+        notifySpeaking(false);
+        player.remove();
+        if (currentPlayer === player) {
+          currentPlayer = null;
+        }
+      }
+    }
+  });
+}
+
 /**
  * Convenience helper to speak a prompt for the given language.
- * Automatically checks SQLite / pregenerated cache and plays audio.
+ * Automatically checks bundled assets / SQLite cache and synthesizes with
+ * Sarvam TTS if the prompt has never been generated before.
  */
 export async function speakPrompt(
   voiceKey: VoicePromptKey | string,
@@ -187,13 +227,13 @@ export async function speakPrompt(
   const reqId = ++activeRequestId;
 
   try {
-    const audio = await getVoiceAudio(voiceKey, language, fallbackText);
+    const source = await getVoiceSource(voiceKey, language, fallbackText);
     if (reqId !== activeRequestId) {
       // Newer input voice arrived while audio was being read! Abort obsolete page voice.
       return;
     }
-    if (audio) {
-      await playBase64Audio(audio, `${language}_${voiceKey}`, reqId);
+    if (source) {
+      await playVoiceSource(source, `${language}_${voiceKey}`, reqId);
     }
   } catch (err) {
     if (reqId === activeRequestId) {

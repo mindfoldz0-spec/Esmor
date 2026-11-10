@@ -1,143 +1,12 @@
 import * as SQLite from 'expo-sqlite';
+import { INITIAL_MARKETPLACE_PRODUCTS } from '@/constants/marketplace-seed';
 import type { MarketplaceProduct, MarketplaceOrder } from '@/types/marketplace';
 
 const DATABASE_NAME = 'esmor.db';
 
-export const INITIAL_MARKETPLACE_PRODUCTS: MarketplaceProduct[] = [
-  {
-    id: 'prod-1',
-    title: 'रत्नागिरी हापूस आंबे (Alphonso Mangoes)',
-    marathiTitle: 'रत्नागिरी हापूस आंबे',
-    hindiTitle: 'रत्नागिरी हापुस आम',
-    category: 'fruits',
-    price: 950,
-    unit: 'box',
-    quantityAvailable: 45,
-    imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-1',
-    sellerName: 'ज्ञानेश्वर तांबडे (Dnyaneshwar)',
-    sellerPhone: '+91 98220 12345',
-    sellerVillage: 'सुपा / बारामती',
-    district: 'Pune',
-    description: 'बागेतील अस्सल गोड आणि रसाळ हापूस आंबे. केमिकल मुक्त, नैसर्गिकरीत्या पिकवलेले.',
-    isOrganic: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-2',
-    title: 'नाशिक गावरान कांदा (Nashik Red Onion)',
-    marathiTitle: 'नाशिक गावरान कांदा',
-    hindiTitle: 'नाशिक लाल प्याज',
-    category: 'vegetables',
-    price: 1350,
-    unit: 'quintal',
-    quantityAvailable: 80,
-    imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-2',
-    sellerName: 'संजय काळे (Sanjay Kale)',
-    sellerPhone: '+91 94231 87654',
-    sellerVillage: 'धांदरफळ / संगमनेर',
-    district: 'Ahmednagar',
-    description: 'नवीन काढणीचा उत्कृष्ट टिकाऊ लाल कांदा. साठवणुकीसाठी व स्वयंपाकासाठी उत्तम.',
-    isOrganic: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-3',
-    title: 'कोल्हापुरी सेंद्रिय गूळ (Organic Jaggery)',
-    marathiTitle: 'कोल्हापुरी सेंद्रिय गूळ',
-    hindiTitle: 'कोल्हापुरी जैविक गुड़',
-    category: 'dairy',
-    price: 65,
-    unit: 'kg',
-    quantityAvailable: 150,
-    imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-3',
-    sellerName: 'बाळू पाटील (Balu Patil)',
-    sellerPhone: '+91 97654 32190',
-    sellerVillage: 'वारणा नगर / कोल्हापूर',
-    district: 'Kolhapur',
-    description: 'उसाच्या रसापासून बनवलेला केमिकल विरहित शुद्ध गूळ. १ किलो ढेप.',
-    isOrganic: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-4',
-    title: 'ताजे लाल टोमॅटो (Fresh Farm Tomatoes)',
-    marathiTitle: 'ताजे लाल टोमॅटो',
-    hindiTitle: 'ताजा लाल टमाटर',
-    category: 'vegetables',
-    price: 360,
-    unit: 'crate',
-    quantityAvailable: 35,
-    imageUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-4',
-    sellerName: 'अशोक मोरे (Ashok More)',
-    sellerPhone: '+91 98601 54321',
-    sellerVillage: 'ओतूर / जुन्नर',
-    district: 'Pune',
-    description: 'नारायणगाव पद्धतीचे उत्कृष्ट दर्जाचे ताजे टोमॅटो. २५ किलो प्रति क्रेट.',
-    isOrganic: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-5',
-    title: 'इंद्रायणी सुगंधी तांदूळ (Indrayani Rice)',
-    marathiTitle: 'इंद्रायणी सुगंधी तांदूळ',
-    hindiTitle: 'इंद्रायणी सुगंधित चावल',
-    category: 'grains',
-    price: 58,
-    unit: 'kg',
-    quantityAvailable: 300,
-    imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-5',
-    sellerName: 'ज्ञानेश्वर तांबडे',
-    sellerPhone: '+91 98220 12345',
-    sellerVillage: 'मावळ / पुणे',
-    district: 'Pune',
-    description: 'मावळातील सुगंधी व मऊ शिजणारा अस्सल जुना इंद्रायणी तांदूळ.',
-    isOrganic: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-6',
-    title: 'शुद्ध गावठी गाईचे तूप (Desi Cow Ghee)',
-    marathiTitle: 'शुद्ध गावठी गाईचे तूप',
-    hindiTitle: 'शुद्ध देसी गाय का घी',
-    category: 'dairy',
-    price: 780,
-    unit: 'liter',
-    quantityAvailable: 25,
-    imageUrl: 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-6',
-    sellerName: 'बाळू पाटील',
-    sellerPhone: '+91 97654 32190',
-    sellerVillage: 'वारणा नगर',
-    district: 'Kolhapur',
-    description: 'पारंपरिक बिलोना पद्धतीने काढलेले सुगंधी व दाणेदार देशी गाईचे तूप.',
-    isOrganic: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'prod-7',
-    title: '१६ लिटर बॅटरी स्प्रे पंप (Battery Sprayer)',
-    marathiTitle: '१६ लिटर बॅटरी स्प्रे पंप',
-    hindiTitle: '१६ लीटर बैटरी स्प्रे पंप',
-    category: 'equipment',
-    price: 2450,
-    unit: 'piece',
-    quantityAvailable: 12,
-    imageUrl: 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=600&q=80',
-    sellerId: 'seller-7',
-    sellerName: 'संजय काळे',
-    sellerPhone: '+91 94231 87654',
-    sellerVillage: 'संगमनेर',
-    district: 'Ahmednagar',
-    description: '१२ व्होल्ट हेवी ड्युटी बॅटरी, डबल मोटर, ६ महिन्यांची वॉरंटी.',
-    isOrganic: false,
-    createdAt: new Date().toISOString(),
-  },
-];
+export { INITIAL_MARKETPLACE_PRODUCTS };
+
+
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -168,7 +37,11 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
         );
       `);
       return db;
-    })();
+    })().catch((err) => {
+      // A transient failure must not brick every future call — allow retry.
+      dbPromise = null;
+      throw err;
+    });
   }
   return dbPromise;
 }
@@ -206,6 +79,54 @@ export async function addMarketplaceProduct(product: MarketplaceProduct): Promis
   } catch (err) {
     console.error('Failed to save product to SQLite:', err);
     throw err;
+  }
+}
+
+export async function getAllMarketplaceOrders(): Promise<MarketplaceOrder[]> {
+  try {
+    const db = await getDb();
+    const rows = await db.getAllAsync<{
+      id: string;
+      product_id: string;
+      product_title: string;
+      quantity: number;
+      unit: string;
+      unit_price: number;
+      total_price: number;
+      buyer_name: string;
+      buyer_phone: string;
+      delivery_address: string;
+      status: string;
+      ordered_at: string;
+    }>('SELECT * FROM marketplace_orders ORDER BY ordered_at DESC');
+
+    return rows.map((row) => ({
+      id: row.id,
+      productId: row.product_id,
+      productTitle: row.product_title,
+      quantity: row.quantity,
+      unit: row.unit as MarketplaceOrder['unit'],
+      unitPrice: row.unit_price,
+      totalPrice: row.total_price,
+      buyerName: row.buyer_name,
+      buyerPhone: row.buyer_phone,
+      deliveryAddress: row.delivery_address,
+      status: row.status as MarketplaceOrder['status'],
+      orderedAt: row.ordered_at,
+    }));
+  } catch (err) {
+    console.warn('Failed to load marketplace orders:', err);
+    return [];
+  }
+}
+
+/** Delete every marketplace row this device holds (used by Reset profile). */
+export async function resetMarketplaceData(): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.execAsync('DELETE FROM marketplace_orders; DELETE FROM marketplace_products;');
+  } catch (err) {
+    console.warn('Could not reset marketplace data:', err);
   }
 }
 

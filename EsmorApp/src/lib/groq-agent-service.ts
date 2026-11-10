@@ -1,12 +1,19 @@
 import type { Language } from '@/i18n/languages';
 import type { ListingDraft, ProductCategory, ProductUnit } from '@/types/marketplace';
+import { translate } from '@/i18n/translations';
+import { fetchWithTimeout } from '@/lib/net';
 
 const GROQ_API_KEY =
   process.env.EXPO_PUBLIC_GROQ_API_KEY ||
   process.env.groq_api ||
   '';
 
-const PRIMARY_MODEL = 'qwen/qwen3.8-27b';
+/**
+ * The listing agent model. 'qwen/qwen3.8-27b' is a Groq *preview* model and may
+ * be discontinued or renamed at short notice, so it can be overridden via the
+ * EXPO_PUBLIC_GROQ_MODEL environment variable without a code change.
+ */
+const PRIMARY_MODEL = process.env.EXPO_PUBLIC_GROQ_MODEL || 'qwen/qwen3.8-27b';
 
 /**
  * Benchmark Mandi market rates across Maharashtra APMCs
@@ -83,6 +90,11 @@ JSON Structure:
 \`\`\`
 `;
 
+  if (!GROQ_API_KEY) {
+    console.warn('Groq API key is not configured; using the offline rule-based agent.');
+    return runLocalRuleAgent(userMessage, language, currentDraft);
+  }
+
   const messages = [
     { role: 'system', content: systemPrompt },
     ...conversationHistory.slice(-6),
@@ -90,19 +102,23 @@ JSON Structure:
   ];
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
+    const res = await fetchWithTimeout(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: PRIMARY_MODEL,
+          messages,
+          temperature: 0.3,
+          max_tokens: 600,
+        }),
       },
-      body: JSON.stringify({
-        model: PRIMARY_MODEL,
-        messages,
-        temperature: 0.3,
-        max_tokens: 600,
-      }),
-    });
+      12000
+    );
 
     if (res.ok) {
       const data = await res.json();
@@ -126,10 +142,17 @@ JSON Structure:
       // If no code block, clean text
       return {
         replyText: rawContent.trim(),
-        suggestedQuickReplies: language === 'mr' ? ['होय, चालेल', 'भाव बदला'] : ['Looks good', 'Change price'],
+        suggestedQuickReplies: [
+          translate(language, 'agent.fallbackQuickOk'),
+          translate(language, 'agentModal.quickChangePrice'),
+        ],
         productDraft: currentDraft,
       };
     }
+
+    // Non-ok responses (auth, deprecation, rate limits) used to fail silently.
+    const errBody = await res.text().catch(() => '');
+    console.warn(`Groq chat completion failed: HTTP ${res.status} ${errBody.slice(0, 300)}`);
   } catch (err) {
     console.warn('Groq primary model call failed, using intelligent offline agent:', err);
   }
@@ -186,14 +209,14 @@ function runLocalRuleAgent(
   if (isAskingBestPrice && nextDraft.suggestedPrice) {
     nextDraft.price = nextDraft.suggestedPrice;
     return {
-      replyText:
-        language === 'mr'
-          ? `सध्या बाजार समितीत याचा भाव सुमारे ₹${nextDraft.suggestedPrice} प्रति ${nextDraft.unit || 'नग'} आहे. आपण ₹${nextDraft.suggestedPrice} हा भाव ठेवूया का?`
-          : `Currently in Mandi, this sells around ₹${nextDraft.suggestedPrice} per ${nextDraft.unit || 'unit'}. Shall we set ₹${nextDraft.suggestedPrice}?`,
-      suggestedQuickReplies:
-        language === 'mr'
-          ? [`होय, ₹${nextDraft.suggestedPrice} भाव ठेवा`, 'दुसरा भाव सांगा']
-          : [`Yes, set ₹${nextDraft.suggestedPrice}`, 'Set another price'],
+      replyText: translate(language, 'agent.bestPriceReply', {
+        price: nextDraft.suggestedPrice,
+        unit: nextDraft.unit || 'unit',
+      }),
+      suggestedQuickReplies: [
+        translate(language, 'agent.quickSetPrice', { price: nextDraft.suggestedPrice }),
+        translate(language, 'agent.quickSetAnotherPrice'),
+      ],
       productDraft: nextDraft,
     };
   }
@@ -202,14 +225,17 @@ function runLocalRuleAgent(
   if (nextDraft.title && nextDraft.price && nextDraft.quantity) {
     nextDraft.isReady = true;
     return {
-      replyText:
-        language === 'mr'
-          ? `छान! तुमचे उत्पादन: ${nextDraft.title}, प्रमाण: ${nextDraft.quantity} ${nextDraft.unit}, भाव: ₹${nextDraft.price}. बाजारपेठेत प्रकाशित करायचे का?`
-          : `Great! Product: ${nextDraft.title}, Quantity: ${nextDraft.quantity} ${nextDraft.unit}, Price: ₹${nextDraft.price}. Ready to publish to marketplace?`,
-      suggestedQuickReplies:
-        language === 'mr'
-          ? ['होय, आताच प्रकाशित करा! 🎉', 'फोटो जोडा', 'माहिती बदला']
-          : ['Yes, Publish Now! 🎉', 'Add Photo', 'Edit details'],
+      replyText: translate(language, 'agent.readyToPublish', {
+        title: nextDraft.title,
+        quantity: nextDraft.quantity,
+        unit: nextDraft.unit ?? 'unit',
+        price: nextDraft.price,
+      }),
+      suggestedQuickReplies: [
+        translate(language, 'agentModal.quickYesPublish'),
+        translate(language, 'agent.quickAddPhoto'),
+        translate(language, 'agent.quickEditDetails'),
+      ],
       productDraft: nextDraft,
     };
   }
@@ -217,25 +243,25 @@ function runLocalRuleAgent(
   // Ask for missing details
   if (!nextDraft.price) {
     return {
-      replyText:
-        language === 'mr'
-          ? `उत्तम! ${detectedTitle || 'या मालासाठी'} तुम्हाला काय भाव ठेवायचा आहे? (जर माहित नसेल तर 'योग्य भाव सांगा' म्हणा)`
-          : `Great! What price would you like to set for ${detectedTitle || 'this item'}? (Or say 'Suggest best price')`,
-      suggestedQuickReplies:
-        language === 'mr'
-          ? ['बाजारातील योग्य भाव सांगा', '₹350 प्रति क्रेट', '₹50 प्रति किलो']
-          : ['Suggest best mandi price', '₹350 per crate', '₹50 per kg'],
+      replyText: translate(language, 'agent.askPrice', {
+        title: detectedTitle || translate(language, 'agent.thisItem'),
+      }),
+      suggestedQuickReplies: [
+        translate(language, 'agent.quickSuggestBestPrice'),
+        translate(language, 'agent.sampleChipRate1'),
+        translate(language, 'agent.sampleChipRate2'),
+      ],
       productDraft: { ...nextDraft, title: nextDraft.title || detectedTitle },
     };
   }
 
   return {
-    replyText:
-      language === 'mr'
-        ? 'तुमच्याकडे किती माल उपलब्ध आहे? (उदा. १० क्रेट किंवा ५ क्विंटल)'
-        : 'How much quantity do you have available? (e.g. 10 crates or 5 quintals)',
-    suggestedQuickReplies:
-      language === 'mr' ? ['१० क्रेट उपलब्ध आहेत', '५ क्विंटल', '२० किलो'] : ['10 crates', '5 quintals', '20 kg'],
+    replyText: translate(language, 'agent.askQuantity'),
+    suggestedQuickReplies: [
+      translate(language, 'agent.quickQuantity1'),
+      translate(language, 'agent.quickQuantity2'),
+      translate(language, 'agent.quickQuantity3'),
+    ],
     productDraft: nextDraft,
   };
 }

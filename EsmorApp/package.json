@@ -1,6 +1,7 @@
 {
   "name": "esmorapp",
   "version": "1.0.0",
+  "description": "Esmor — voice-first rural marketplace, freight pooling and farm services for Maharashtra.",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/ui": "~57.0.25",
@@ -44,11 +45,12 @@
   },
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "decode-voices": "node ./scripts/decode-voices.js",
     "postinstall": "node ./scripts/patch-expo-notifications.js"
   },
   "private": true

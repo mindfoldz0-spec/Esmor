@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -71,17 +72,17 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     await stopVoice();
   }, []);
 
-  return (
-    <VoiceContext.Provider
-      value={{
-        isSpeaking,
-        activeKey,
-        speak,
-        stop,
-      }}>
-      {children}
-    </VoiceContext.Provider>
+  const value = useMemo(
+    () => ({
+      isSpeaking,
+      activeKey,
+      speak,
+      stop,
+    }),
+    [isSpeaking, activeKey, speak, stop]
   );
+
+  return <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>;
 }
 
 export function useVoice(): VoiceContextValue {

@@ -279,10 +279,11 @@ export async function getRealUserLocation(savedProfile?: {
     }
 
     if (perm.status === 'granted') {
-      // Try last known position first for instant speed
-      let pos = await Location.getLastKnownPositionAsync();
+      // Try a recent last-known fix first for instant speed — but only one
+      // that's at most 5 minutes old, so a stale fix is never badged "Live".
+      let pos = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 });
 
-      // If no last known position or older, get fresh position
+      // If no recent fix exists, get a fresh position.
       if (!pos) {
         pos = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -435,6 +436,9 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
     ...(terminalMandis.length > 0 ? terminalMandis.slice(0, 1) : mandisWithDistance.slice(3, 4)),
   ];
 
+  // Fallback slices can overlap — keep the nearest of each mandi only once.
+  const uniqueMandis = [...new Map(selectedMandis.map((m) => [m.id, m])).values()];
+
   const VEHICLE_TEMPLATES = [
     {
       vehicleType: 'tata_ace' as const,
@@ -482,7 +486,7 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
     },
   ];
 
-  return selectedMandis.map((mandi, idx) => {
+  return uniqueMandis.map((mandi, idx) => {
     const template = VEHICLE_TEMPLATES[idx % VEHICLE_TEMPLATES.length];
     const dist = mandi.distanceKm;
     // Calculate realistic pooled freight rate

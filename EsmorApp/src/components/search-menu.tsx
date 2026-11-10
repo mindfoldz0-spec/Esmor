@@ -44,48 +44,9 @@ export function SearchMenu({
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
 
-  const defaultRecentSearches = useMemo(
-    () => [
-      t('search.recent.yoga'),
-      t('search.recent.tiffany'),
-      t('search.recent.balance'),
-    ],
-    [t]
-  );
-
-  const defaultItems = useMemo<SearchItem[]>(
-    () => [
-      {
-        id: 'yoga-group',
-        title: t('search.item.yogaGroup'),
-        subtitle: t('search.item.yogaGroupSubtitle'),
-        category: t('search.category.class'),
-      },
-      {
-        id: 'balance',
-        title: t('search.item.balance'),
-        subtitle: t('search.item.balanceSubtitle'),
-        category: t('search.category.class'),
-      },
-      {
-        id: 'tiffany-wau',
-        title: t('search.item.tiffany'),
-        subtitle: t('search.item.tiffanySubtitle'),
-        category: t('search.category.people'),
-      },
-      {
-        id: 'daily-challenge',
-        title: t('search.item.daily'),
-        subtitle: t('search.item.dailySubtitle'),
-        category: t('search.category.challenge'),
-      },
-    ],
-    [t]
-  );
-
-  const localizedItems = items ?? defaultItems;
+  const localizedItems = useMemo(() => items ?? [], [items]);
   const [recents, setRecents] = useState<string[]>(() => [
-    ...(recentSearches ?? defaultRecentSearches),
+    ...(recentSearches ?? []),
   ]);
 
   const normalizedQuery = query.trim().toLowerCase();

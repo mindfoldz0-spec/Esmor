@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import Svg, {
   Circle,
@@ -13,6 +13,7 @@ import Svg, {
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
+import { useI18n } from '@/i18n';
 import type { RoutePoint, VehicleType } from '@/types/transport';
 
 type HeadlessMapViewProps = {
@@ -48,59 +49,82 @@ export function HeadlessMapView({
   height = 280,
 }: HeadlessMapViewProps) {
   const [zoomLevel, setZoomLevel] = useState(1);
+  const { t } = useI18n();
   const padding = 34;
 
-  // Calculate bounding box across route points and special markers
-  const allLats = [
-    ...routePoints.map((p) => p[1]),
+  // Projection, SVG paths and marker positions are derived purely from these inputs.
+  const projection = useMemo(() => {
+    const allLats = [
+      ...routePoints.map((p) => p[1]),
+      sourcePoint.latitude,
+      destinationPoint.latitude,
+      vehiclePosition.latitude,
+    ];
+    const allLons = [
+      ...routePoints.map((p) => p[0]),
+      sourcePoint.longitude,
+      destinationPoint.longitude,
+      vehiclePosition.longitude,
+    ];
+
+    const minLat = Math.min(...allLats);
+    const maxLat = Math.max(...allLats);
+    const minLon = Math.min(...allLons);
+    const maxLon = Math.max(...allLons);
+
+    const spanLat = Math.max(0.015, (maxLat - minLat) / zoomLevel);
+    const spanLon = Math.max(0.015, (maxLon - minLon) / zoomLevel);
+
+    const midLat = (minLat + maxLat) / 2;
+    const midLon = (minLon + maxLon) / 2;
+
+    const project = (lon: number, lat: number) => {
+      const x = padding + ((lon - (midLon - spanLon / 2)) / spanLon) * (width - 2 * padding);
+      const y =
+        height - padding - ((lat - (midLat - spanLat / 2)) / spanLat) * (height - 2 * padding);
+      return {
+        x: Math.max(padding - 20, Math.min(width - padding + 20, x)),
+        y: Math.max(padding - 20, Math.min(height - padding + 20, y)),
+      };
+    };
+
+    let fullPathD = '';
+    let traveledPathD = '';
+    const totalCount = routePoints.length;
+    const traveledIdx = Math.floor((progressPercent / 100) * totalCount);
+
+    routePoints.forEach((pt, i) => {
+      const projected = project(pt[0], pt[1]);
+      const cmd = i === 0 ? 'M' : 'L';
+      fullPathD += `${cmd} ${projected.x.toFixed(1)} ${projected.y.toFixed(1)} `;
+
+      if (i <= traveledIdx) {
+        traveledPathD += `${cmd} ${projected.x.toFixed(1)} ${projected.y.toFixed(1)} `;
+      }
+    });
+
+    return {
+      fullPathD,
+      traveledPathD,
+      sourceProj: project(sourcePoint.longitude, sourcePoint.latitude),
+      destProj: project(destinationPoint.longitude, destinationPoint.latitude),
+      vehicleProj: project(vehiclePosition.longitude, vehiclePosition.latitude),
+    };
+  }, [
+    routePoints,
+    zoomLevel,
+    width,
+    height,
+    progressPercent,
     sourcePoint.latitude,
-    destinationPoint.latitude,
-    vehiclePosition.latitude,
-  ];
-  const allLons = [
-    ...routePoints.map((p) => p[0]),
     sourcePoint.longitude,
+    destinationPoint.latitude,
     destinationPoint.longitude,
+    vehiclePosition.latitude,
     vehiclePosition.longitude,
-  ];
+  ]);
 
-  const minLat = Math.min(...allLats);
-  const maxLat = Math.max(...allLats);
-  const minLon = Math.min(...allLons);
-  const maxLon = Math.max(...allLons);
-
-  const spanLat = Math.max(0.015, (maxLat - minLat) / zoomLevel);
-  const spanLon = Math.max(0.015, (maxLon - minLon) / zoomLevel);
-
-  // Center around vehicle or midpoint
-  const midLat = (minLat + maxLat) / 2;
-  const midLon = (minLon + maxLon) / 2;
-
-  const project = (lon: number, lat: number) => {
-    const x = padding + ((lon - (midLon - spanLon / 2)) / spanLon) * (width - 2 * padding);
-    const y = height - padding - ((lat - (midLat - spanLat / 2)) / spanLat) * (height - 2 * padding);
-    return { x: Math.max(padding - 20, Math.min(width - padding + 20, x)), y: Math.max(padding - 20, Math.min(height - padding + 20, y)) };
-  };
-
-  // Convert route coordinates to SVG path
-  let fullPathD = '';
-  let traveledPathD = '';
-  const totalCount = routePoints.length;
-  const traveledIdx = Math.floor((progressPercent / 100) * totalCount);
-
-  routePoints.forEach((pt, i) => {
-    const projected = project(pt[0], pt[1]);
-    const cmd = i === 0 ? 'M' : 'L';
-    fullPathD += `${cmd} ${projected.x.toFixed(1)} ${projected.y.toFixed(1)} `;
-
-    if (i <= traveledIdx) {
-      traveledPathD += `${cmd} ${projected.x.toFixed(1)} ${projected.y.toFixed(1)} `;
-    }
-  });
-
-  const sourceProj = project(sourcePoint.longitude, sourcePoint.latitude);
-  const destProj = project(destinationPoint.longitude, destinationPoint.latitude);
-  const vehicleProj = project(vehiclePosition.longitude, vehiclePosition.latitude);
+  const { fullPathD, traveledPathD, sourceProj, destProj, vehicleProj } = projection;
 
   const vehicleEmoji = VEHICLE_EMOJIS[vehicleType] || '🚚';
 
@@ -259,7 +283,9 @@ export function HeadlessMapView({
             fontSize="8"
             fontWeight="bold"
             textAnchor="middle">
-            {phase === 'approaching_source' ? 'पिकअप कडे' : 'मार्केट कडे'}
+            {phase === 'approaching_source'
+              ? t('map.phaseBadgePickup')
+              : t('map.phaseBadgeMandi')}
           </SvgText>
         </G>
       </Svg>
@@ -297,8 +323,8 @@ export function HeadlessMapView({
         />
         <Text style={styles.phaseText}>
           {phase === 'approaching_source'
-            ? 'गाडी संकलन केंद्राकडे येत आहे (Approaching Source)'
-            : 'मार्केट यार्डकडे प्रवास सुरू (En Route to Mandi)'}
+            ? t('map.bannerApproaching')
+            : t('map.bannerEnRoute')}
         </Text>
       </View>
     </View>

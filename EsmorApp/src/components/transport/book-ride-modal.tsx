@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View, ScrollView } from 'react-nati
 
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { bookTransportSpace } from '@/lib/transport-store';
 import type { TransportRide, CargoCategory, TransportBooking } from '@/types/transport';
@@ -15,16 +15,16 @@ type BookRideModalProps = {
   onBookingSuccess: (booking: TransportBooking) => void;
 };
 
-const CARGO_OPTIONS: { key: CargoCategory; mr: string; hi: string; en: string; icon: string }[] = [
-  { key: 'vegetables', mr: 'भाजीपाला', hi: 'सब्जियां', en: 'Vegetables', icon: '🥬' },
-  { key: 'fruits', mr: 'फळे', hi: 'फल', en: 'Fruits', icon: '🥭' },
-  { key: 'grains', mr: 'धान्य / कडधान्य', hi: 'अनाज / दालें', en: 'Grains & Pulses', icon: '🌾' },
-  { key: 'kirana', mr: 'किराणा साहित्य', hi: 'किराना सामान', en: 'Kirana Goods', icon: '📦' },
-  { key: 'handcrafts', mr: 'हस्तकला / उत्पादने', hi: 'हस्तशिल्प / उत्पाद', en: 'Handcrafted', icon: '🧵' },
+const CARGO_OPTIONS: { key: CargoCategory; labelKey: TranslationKey; icon: string }[] = [
+  { key: 'vegetables', labelKey: 'category.vegetables', icon: '🥬' },
+  { key: 'fruits', labelKey: 'category.fruits', icon: '🥭' },
+  { key: 'grains', labelKey: 'category.grains', icon: '🌾' },
+  { key: 'kirana', labelKey: 'category.kirana', icon: '📦' },
+  { key: 'handcrafts', labelKey: 'category.handcrafts', icon: '🧵' },
 ];
 
 export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: BookRideModalProps) {
-  const { language } = useI18n();
+  const { t } = useI18n();
   const { profile } = useAppData();
   const [selectedCategory, setSelectedCategory] = useState<CargoCategory>('vegetables');
   const [quantity, setQuantity] = useState(4);
@@ -35,6 +35,12 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
   const totalFare = ride.farePerUnit * quantity;
   const privateCharterCost = 1800;
   const savings = Math.max(0, privateCharterCost - totalFare);
+  const unitLabelKey =
+    ride.unitType === 'sack'
+      ? 'bookRide.unitSacks'
+      : ride.unitType === 'crate'
+        ? 'bookRide.unitCrates'
+        : 'bookRide.unitQuintals';
 
   const handleConfirm = async () => {
     try {
@@ -63,9 +69,7 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
 
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>
-                {language === 'mr' ? 'सामाईक मालवाहतूक बुकिंग' : language === 'hi' ? 'साझा परिवहन बुकिंग' : 'Freight Space Booking'}
-              </Text>
+              <Text style={styles.eyebrow}>{t('bookRide.eyebrow')}</Text>
               <Text style={styles.title}>{ride.toMarket}</Text>
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn}>
@@ -75,13 +79,10 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
 
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {/* Cargo Category Selector */}
-            <Text style={styles.sectionTitle}>
-              {language === 'mr' ? '१. माल प्रकार निवडा' : language === 'hi' ? '१. सामान का प्रकार चुनें' : '1. Select Cargo Type'}
-            </Text>
+            <Text style={styles.sectionTitle}>{t('bookRide.selectCargoType')}</Text>
             <View style={styles.categoryWrap}>
               {CARGO_OPTIONS.map((cat) => {
                 const active = selectedCategory === cat.key;
-                const label = language === 'mr' ? cat.mr : language === 'hi' ? cat.hi : cat.en;
                 return (
                   <Pressable
                     key={cat.key}
@@ -89,7 +90,7 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
                     onPress={() => setSelectedCategory(cat.key)}>
                     <Text style={styles.categoryIcon}>{cat.icon}</Text>
                     <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
-                      {label}
+                      {t(cat.labelKey)}
                     </Text>
                   </Pressable>
                 );
@@ -98,11 +99,7 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
 
             {/* Quantity Stepper */}
             <Text style={styles.sectionTitle}>
-              {language === 'mr'
-                ? `२. नग / संख्या निवडा (${ride.unitType})`
-                : language === 'hi'
-                  ? `२. संख्या चुनें (${ride.unitType})`
-                  : `2. Select Quantity (${ride.unitType})`}
+              {t('bookRide.selectQuantity', { unit: ride.unitType })}
             </Text>
 
             <View style={styles.quantityCard}>
@@ -114,13 +111,7 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
 
               <View style={styles.qtyDisplay}>
                 <Text style={styles.qtyNumber}>{quantity}</Text>
-                <Text style={styles.qtyUnit}>
-                  {ride.unitType === 'sack'
-                    ? language === 'mr' ? 'पोती / गोणी' : language === 'hi' ? 'बोरी' : 'Sacks'
-                    : ride.unitType === 'crate'
-                      ? language === 'mr' ? 'क्रेट' : language === 'hi' ? 'क्रेट' : 'Crates'
-                      : language === 'mr' ? 'क्विंटल' : language === 'hi' ? 'क्विंटल' : 'Quintal'}
-                </Text>
+                <Text style={styles.qtyUnit}>{t(unitLabelKey)}</Text>
               </View>
 
               <Pressable
@@ -133,27 +124,19 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
             {/* Price & Savings Comparison Box */}
             <View style={styles.summaryBox}>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {language === 'mr' ? 'सामाईक भाडे दर' : language === 'hi' ? 'साझा किराया दर' : 'Pooled Rate'}
-                </Text>
+                <Text style={styles.summaryLabel}>{t('bookRide.pooledRate')}</Text>
                 <Text style={styles.summaryValue}>₹{ride.farePerUnit} × {quantity}</Text>
               </View>
 
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryTotalLabel}>
-                  {language === 'mr' ? 'एकूण देय रक्कम' : language === 'hi' ? 'कुल देय राशि' : 'Total Payable'}
-                </Text>
+                <Text style={styles.summaryTotalLabel}>{t('bookRide.totalPayable')}</Text>
                 <Text style={styles.summaryTotalValue}>₹{totalFare}</Text>
               </View>
 
               <View style={styles.savingsBanner}>
                 <Text style={styles.savingsIcon}>🎉</Text>
                 <Text style={styles.savingsText}>
-                  {language === 'mr'
-                    ? `एकट्याने टेम्पो करण्यापेक्षा तुमची ₹${savings} बचत होते!`
-                    : language === 'hi'
-                      ? `अकेले गाड़ी करने के मुकाबले ₹${savings} की सीधी बचत!`
-                      : `You save ₹${savings} vs hiring a full private tempo!`}
+                  {t('bookRide.savingsBanner', { savings })}
                 </Text>
               </View>
             </View>
@@ -162,9 +145,7 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
             <View style={styles.pickupCard}>
               <AppIcon name={Icons.location} size={16} color={Brand.ink} />
               <View style={styles.pickupWrap}>
-                <Text style={styles.pickupLabel}>
-                  {language === 'mr' ? 'संकलन केंद्र (पिकअप हब)' : language === 'hi' ? 'पिकअप स्थान' : 'Pickup Hub'}
-                </Text>
+                <Text style={styles.pickupLabel}>{t('bookRide.pickupLabel')}</Text>
                 <Text style={styles.pickupValue}>{ride.pickupHub}</Text>
               </View>
             </View>
@@ -176,12 +157,8 @@ export function BookRideModal({ ride, visible, onClose, onBookingSuccess }: Book
               disabled={loading}>
               <Text style={styles.confirmBtnText}>
                 {loading
-                  ? (language === 'mr' ? 'नोंदणी करत आहे...' : 'Booking...')
-                  : (language === 'mr'
-                      ? `₹${totalFare} मध्ये जागा निश्चित करा`
-                      : language === 'hi'
-                        ? `₹${totalFare} में जगह कन्फर्म करें`
-                        : `Confirm Booking for ₹${totalFare}`)}
+                  ? t('bookRide.booking')
+                  : t('bookRide.confirmBooking', { fare: totalFare })}
               </Text>
             </Pressable>
           </ScrollView>

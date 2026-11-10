@@ -1,5 +1,12 @@
 import { Platform } from 'react-native';
+import {
+  AudioModule,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+} from 'expo-audio';
 import type { Language } from '@/i18n/languages';
+import { fetchWithTimeout } from '@/lib/net';
 
 const GROQ_API_KEY =
   process.env.EXPO_PUBLIC_GROQ_API_KEY ||
@@ -33,13 +40,15 @@ export async function transcribeAudioBlob(
         'शेतकरी उत्पादन भाजीपाला फळे धान्य कांदा टोमॅटो आंबा भाव क्रेट क्विंटल किलो'
       );
 
-      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${GROQ_API_KEY}`,
         },
         body: groqFormData,
-      });
+      },
+      20000
+    );
 
       if (res.ok) {
         const data = await res.json();
@@ -67,13 +76,15 @@ export async function transcribeAudioBlob(
         language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN'
       );
 
-      const res = await fetch('https://api.sarvam.ai/speech-to-text', {
+      const res = await fetchWithTimeout('https://api.sarvam.ai/speech-to-text', {
         method: 'POST',
         headers: {
           'api-subscription-key': SARVAM_API_KEY,
         },
         body: sarvamFormData,
-      });
+      },
+      20000
+    );
 
       if (res.ok) {
         const data = await res.json();
@@ -114,13 +125,15 @@ export async function transcribeNativeAudioFile(
         'शेतकरी उत्पादन भाजीपाला फळे धान्य कांदा टोमॅटो आंबा भाव क्रेट क्विंटल किलो'
       );
 
-      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${GROQ_API_KEY}`,
         },
         body: groqFormData,
-      });
+      },
+      20000
+    );
 
       if (res.ok) {
         const data = await res.json();
@@ -148,13 +161,15 @@ export async function transcribeNativeAudioFile(
         language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN'
       );
 
-      const res = await fetch('https://api.sarvam.ai/speech-to-text', {
+      const res = await fetchWithTimeout('https://api.sarvam.ai/speech-to-text', {
         method: 'POST',
         headers: {
           'api-subscription-key': SARVAM_API_KEY,
         },
         body: sarvamFormData,
-      });
+      },
+      20000
+    );
 
       if (res.ok) {
         const data = await res.json();
@@ -175,10 +190,19 @@ export async function transcribeNativeAudioFile(
  * Speech Recognition controller supporting Web SpeechRecognition + MediaRecorder + expo-audio
  */
 export class SpeechToTextController {
+  // Structural type instead of the deep expo-audio class import, which the
+  // import/namespace rule cannot resolve through the package's re-export chain.
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
   private stream: MediaStream | null = null;
   private webSpeechRecognition: any = null;
+  private recorder: {
+    uri: string | null;
+    record(): void;
+    stop(): Promise<void>;
+    prepareToRecordAsync(): Promise<void>;
+    getStatus(): { url: string | null };
+  } | null = null;
   private isListening = false;
 
   async startListening(
@@ -258,6 +282,36 @@ export class SpeechToTextController {
       }
     }
 
+    // Native iOS & Android: record with expo-audio, transcribe the file afterwards
+    if (Platform.OS !== 'web') {
+      try {
+        const permission = await requestRecordingPermissionsAsync();
+        if (!permission.granted) {
+          console.warn('Microphone permission was not granted.');
+          return false;
+        }
+
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+
+        // eslint-disable-next-line import/namespace -- re-exported through the package's default-class chain; TS resolves it correctly
+        const recorder = new AudioModule.AudioRecorder({ ...RecordingPresets.LOW_QUALITY });
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+
+        this.recorder = recorder;
+        this.isListening = true;
+        return true;
+      } catch (err) {
+        console.warn('Native audio recording failed to start:', err);
+        return false;
+      }
+    }
+
+    // Web: browser SpeechRecognition is running but MediaRecorder is unavailable.
+    // Live dictation still works through onInterimText.
     this.isListening = true;
     return true;
   }
@@ -319,11 +373,41 @@ export class SpeechToTextController {
       });
     }
 
+    // Stop the native expo-audio recorder and transcribe the file
+    if (Platform.OS !== 'web') {
+      const recorder = this.recorder;
+      this.recorder = null;
+      this.isListening = false;
+      if (!recorder) {
+        return '';
+      }
+
+      try {
+        await recorder.stop();
+      } catch (err) {
+        console.warn('Failed to stop the native recording:', err);
+      } finally {
+        // Restore the audio session so voice playback works again
+        setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+      }
+
+      const uri = recorder.uri ?? recorder.getStatus()?.url ?? null;
+      if (!uri) {
+        return '';
+      }
+      return transcribeNativeAudioFile(uri, language);
+    }
+
     return '';
   }
 
   cancel() {
     this.isListening = false;
+    if (this.recorder) {
+      this.recorder.stop().catch(() => {});
+      this.recorder = null;
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    }
     if (this.webSpeechRecognition) {
       try {
         this.webSpeechRecognition.abort();

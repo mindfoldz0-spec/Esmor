@@ -23,20 +23,29 @@ import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { useAppData } from '@/providers/app-data-provider';
 import { speakPrompt } from '@/lib/voice-player';
+import { contentVoiceKey } from '@/lib/voice-service';
 import {
   DEFAULT_USER_LOCATION,
   getRealUserLocation,
   matchRidesForUserLocation,
   geocodePlaceWithOsm,
 } from '@/lib/mandi-location-service';
-import { getAllTransportRides, INITIAL_MAHARASHTRA_RIDES } from '@/lib/transport-store';
+import { getCustomTransportRides, INITIAL_MAHARASHTRA_RIDES } from '@/lib/transport-store';
 import type { GeoPoint, TransportRide, TransportBooking } from '@/types/transport';
 
 type FilterTab = 'all' | 'nearby' | 'regional' | 'terminal' | 'pune' | 'nashik';
 
+/** Merged list: user-posted rides first, then location-matched rides. */
+async function fetchRidesForLocation(loc: GeoPoint): Promise<TransportRide[]> {
+  const customRides = await getCustomTransportRides();
+  const matchedRides = matchRidesForUserLocation(loc);
+  const merged = [...customRides, ...matchedRides];
+  return merged.length > 0 ? merged : INITIAL_MAHARASHTRA_RIDES;
+}
+
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const { profile } = useAppData();
 
   const [userLocation, setUserLocation] = useState<GeoPoint>(DEFAULT_USER_LOCATION);
@@ -45,6 +54,7 @@ export default function ExploreScreen() {
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [customVillageText, setCustomVillageText] = useState('');
   const [searchingVillage, setSearchingVillage] = useState(false);
+  const [villageError, setVillageError] = useState<string | null>(null);
 
   const [rides, setRides] = useState<TransportRide[]>(INITIAL_MAHARASHTRA_RIDES);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,18 +79,7 @@ export default function ExploreScreen() {
 
         setUserLocation(loc);
         setIsLiveGps(loc.isLiveGps);
-
-        // Fetch DB rides & generate location-tailored rides
-        const customDbRides = await getAllTransportRides();
-        const matchedRides = matchRidesForUserLocation(loc);
-
-        // Custom user-posted rides first, then dynamic location-matched rides
-        const merged = [
-          ...customDbRides.filter((r) => r.id.startsWith('custom-')),
-          ...matchedRides,
-        ];
-
-        setRides(merged.length > 0 ? merged : INITIAL_MAHARASHTRA_RIDES);
+        setRides(await fetchRidesForLocation(loc));
       } finally {
         if (mounted) {
           setDetectingLocation(false);
@@ -101,13 +100,7 @@ export default function ExploreScreen() {
       const loc = await getRealUserLocation(profile?.location);
       setUserLocation(loc);
       setIsLiveGps(loc.isLiveGps);
-      const customDbRides = await getAllTransportRides();
-      const matchedRides = matchRidesForUserLocation(loc);
-      const merged = [
-        ...customDbRides.filter((r) => r.id.startsWith('custom-')),
-        ...matchedRides,
-      ];
-      setRides(merged);
+      setRides(await fetchRidesForLocation(loc));
     } finally {
       setDetectingLocation(false);
     }
@@ -115,19 +108,16 @@ export default function ExploreScreen() {
 
   const handleSelectVillage = async (villageName: string) => {
     setSearchingVillage(true);
+    setVillageError(null);
     try {
       const point = await geocodePlaceWithOsm(villageName);
       if (point) {
         setUserLocation(point);
         setIsLiveGps(false);
-        const customDbRides = await getAllTransportRides();
-        const matchedRides = matchRidesForUserLocation(point);
-        const merged = [
-          ...customDbRides.filter((r) => r.id.startsWith('custom-')),
-          ...matchedRides,
-        ];
-        setRides(merged);
+        setRides(await fetchRidesForLocation(point));
         setLocationPickerOpen(false);
+      } else {
+        setVillageError(t('transport.villageSearchError'));
       }
     } finally {
       setSearchingVillage(false);
@@ -143,14 +133,9 @@ export default function ExploreScreen() {
   const handleHeaderVoice = async () => {
     try {
       setSpeakingHeader(true);
-      const text =
-        language === 'mr'
-          ? `सामाईक वाहतूक सेवा. तुमचे स्थान ${userLocation.name} असून ओपन मॅप्स द्वारे जवळपासच्या आणि मोठ्या बाजार समित्या जोडल्या आहेत. गाडी निवडून जागा बुक करा किंवा थेट लाईव्ह ट्रॅक करा.`
-          : language === 'hi'
-            ? `साझा वाहन सेवा। आपका स्थान ${userLocation.name} है और ओपन मैप्स द्वारा नजदीकी व बड़ी मंडियां जोड़ी गई हैं। जगह बुक करें या लाइव ट्रैक करें।`
-            : `Shared Transport. Your location is ${userLocation.name}. Matched with nearby and terminal mandis via OpenStreetMap. Book space or track vehicles live.`;
+      const text = t('transport.voiceHeader', { place: userLocation.name });
 
-      await speakPrompt('transport_hub_header', language, text);
+      await speakPrompt(contentVoiceKey('transport_hub_header', text), language, text);
     } finally {
       setSpeakingHeader(false);
     }
@@ -198,20 +183,8 @@ export default function ExploreScreen() {
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTitles}>
-            <Text style={styles.eyebrow}>
-              {language === 'mr'
-                ? 'ओपनमॅप्स मालवाहतूक पूल'
-                : language === 'hi'
-                  ? 'ओपनमैप्स माल ढुलाई पूल'
-                  : 'OpenMaps Freight Pooling'}
-            </Text>
-            <Text style={styles.title}>
-              {language === 'mr'
-                ? 'सामाईक वाहतूक'
-                : language === 'hi'
-                  ? 'साझा वाहन सेवा'
-                  : 'Shared Transport'}
-            </Text>
+            <Text style={styles.eyebrow}>{t('transport.eyebrow')}</Text>
+            <Text style={styles.title}>{t('transport.title')}</Text>
           </View>
 
           <View style={styles.headerActions}>
@@ -233,9 +206,7 @@ export default function ExploreScreen() {
               accessibilityRole="button"
               accessibilityLabel="Post empty vehicle">
               <AppIcon name={Icons.check} size={14} color={Brand.surface} />
-              <Text style={styles.postBtnText}>
-                {language === 'mr' ? '+ माझी गाडी' : language === 'hi' ? '+ मेरी गाड़ी' : '+ Post Trip'}
-              </Text>
+              <Text style={styles.postBtnText}>{t('transport.postTrip')}</Text>
             </Pressable>
           </View>
         </View>
@@ -268,18 +239,14 @@ export default function ExploreScreen() {
                       styles.gpsBadgeText,
                       isLiveGps ? styles.gpsBadgeTextLive : styles.gpsBadgeTextManual,
                     ]}>
-                    {isLiveGps ? '● LIVE GPS' : '📍 LOCATION'}
+                    {isLiveGps ? t('transport.gpsBadgeLive') : t('transport.gpsBadgeCached')}
                   </Text>
                 </View>
               </View>
               <Text style={styles.locationSubtitle} numberOfLines={1}>
                 {isLiveGps
-                  ? language === 'mr'
-                    ? 'थेट फोन GPS द्वारे बाजार जोडले (बदलण्यासाठी टॅप करा)'
-                    : 'Matched via phone live GPS (Tap to change)'
-                  : language === 'mr'
-                    ? 'स्थान बदलण्यासाठी किंवा थेट GPS घेण्यासाठी येथे टॅप करा'
-                    : 'Tap to refresh GPS or select your village'}
+                  ? t('transport.liveGpsSubtitle')
+                  : t('transport.manualLocationSubtitle')}
               </Text>
             </View>
           </View>
@@ -308,14 +275,12 @@ export default function ExploreScreen() {
             </View>
             <View style={styles.bookingBannerText}>
               <Text style={styles.bookingBannerTitle}>
-                {language === 'mr'
-                  ? `जागा निश्चित! ₹${latestBooking.totalFare} मध्ये`
-                  : `Space Confirmed for ₹${latestBooking.totalFare}`}
+                {t('transport.bookingBannerTitle', { fare: latestBooking.totalFare })}
               </Text>
               <Text style={styles.bookingBannerSub}>
-                {language === 'mr'
-                  ? `टेम्पोपेक्षा तुमची ₹${latestBooking.estimatedSavings} बचत झाली!`
-                  : `You saved ₹${latestBooking.estimatedSavings}!`}
+                {t('transport.bookingBannerSavings', {
+                  savings: latestBooking.estimatedSavings,
+                })}
               </Text>
             </View>
 
@@ -323,12 +288,12 @@ export default function ExploreScreen() {
               style={styles.trackBookingBtn}
               onPress={() => {
                 const bookedRide =
-                  rides.find((r) => r.id === latestBooking.rideId) || rides[0];
-                setSelectedRideForTracking(bookedRide);
+                  rides.find((r) => r.id === latestBooking.rideId) ?? rides[0];
+                if (bookedRide) {
+                  setSelectedRideForTracking(bookedRide);
+                }
               }}>
-              <Text style={styles.trackBookingBtnText}>
-                {language === 'mr' ? 'थेट ट्रॅक' : 'Track'}
-              </Text>
+              <Text style={styles.trackBookingBtnText}>{t('transport.trackNow')}</Text>
             </Pressable>
 
             <Pressable onPress={() => setLatestBooking(null)} style={styles.dismissBtn}>
@@ -344,13 +309,7 @@ export default function ExploreScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={
-                language === 'mr'
-                  ? 'बाजार समिती, गाव किंवा जिल्हा शोधा...'
-                  : language === 'hi'
-                    ? 'मंडी, गांव या जिला खोजें...'
-                    : 'Search mandi, village, or route...'
-              }
+              placeholder={t('transport.searchPlaceholder')}
               placeholderTextColor={Brand.inkFaint}
               selectionColor={Brand.accent}
               returnKeyType="search"
@@ -383,7 +342,7 @@ export default function ExploreScreen() {
               style={[styles.filterChip, activeFilter === 'all' && styles.filterChipActive]}
               onPress={() => setActiveFilter('all')}>
               <Text style={[styles.filterText, activeFilter === 'all' && styles.filterTextActive]}>
-                {language === 'mr' ? 'सर्व फेऱ्या' : language === 'hi' ? 'सभी फेरियां' : 'All Trips'}
+                {t('transport.filterAll')}
               </Text>
             </Pressable>
 
@@ -398,7 +357,7 @@ export default function ExploreScreen() {
                   styles.filterText,
                   activeFilter === 'nearby' && styles.filterTextActive,
                 ]}>
-                {language === 'mr' ? '🟢 जवळची मंडी (<45 km)' : '🟢 Nearby (<45 km)'}
+                {t('transport.filterNearby')}
               </Text>
             </Pressable>
 
@@ -413,7 +372,7 @@ export default function ExploreScreen() {
                   styles.filterText,
                   activeFilter === 'regional' && styles.filterTextActive,
                 ]}>
-                {language === 'mr' ? '🟡 जिल्हा मंडी (45-110 km)' : '🟡 Regional APMC'}
+                {t('transport.filterRegional')}
               </Text>
             </Pressable>
 
@@ -428,7 +387,7 @@ export default function ExploreScreen() {
                   styles.filterText,
                   activeFilter === 'terminal' && styles.filterTextActive,
                 ]}>
-                {language === 'mr' ? '🔵 मोठी मंडी (>110 km)' : '🔵 Terminal Mandi'}
+                {t('transport.filterTerminal')}
               </Text>
             </Pressable>
 
@@ -436,7 +395,7 @@ export default function ExploreScreen() {
               style={[styles.filterChip, activeFilter === 'pune' && styles.filterChipActive]}
               onPress={() => setActiveFilter('pune')}>
               <Text style={[styles.filterText, activeFilter === 'pune' && styles.filterTextActive]}>
-                {language === 'mr' ? 'पुणे मार्केट' : 'Pune Mandi'}
+                {t('transport.filterPune')}
               </Text>
             </Pressable>
 
@@ -444,7 +403,7 @@ export default function ExploreScreen() {
               style={[styles.filterChip, activeFilter === 'nashik' && styles.filterChipActive]}
               onPress={() => setActiveFilter('nashik')}>
               <Text style={[styles.filterText, activeFilter === 'nashik' && styles.filterTextActive]}>
-                {language === 'mr' ? 'नाशिक APMC' : 'Nashik APMC'}
+                {t('transport.filterNashik')}
               </Text>
             </Pressable>
           </ScrollView>
@@ -470,16 +429,8 @@ export default function ExploreScreen() {
           ListEmptyComponent={
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>🚚</Text>
-              <Text style={styles.emptyTitle}>
-                {language === 'mr'
-                  ? 'या मार्गावर सध्या गाड्या उपलब्ध नाहीत'
-                  : 'No trips found for this search'}
-              </Text>
-              <Text style={styles.emptySub}>
-                {language === 'mr'
-                  ? 'तुमची स्वतःची गाडी नोंदवून इतरांना सोबत घेऊन उत्पन्न मिळवा किंवा वेगळा शोध घ्या.'
-                  : 'Try searching another market or post your own vehicle to earn freight income.'}
-              </Text>
+              <Text style={styles.emptyTitle}>{t('transport.emptyTitle')}</Text>
+              <Text style={styles.emptySub}>{t('transport.emptySub')}</Text>
             </View>
           }
         />
@@ -494,9 +445,7 @@ export default function ExploreScreen() {
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerSheet}>
             <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>
-                {language === 'mr' ? 'तुमचे स्थान निवडा' : 'Select Your Location'}
-              </Text>
+              <Text style={styles.pickerTitle}>{t('transport.pickerTitle')}</Text>
               <Pressable
                 onPress={() => setLocationPickerOpen(false)}
                 style={styles.pickerCloseBtn}
@@ -519,14 +468,8 @@ export default function ExploreScreen() {
                 <AppIcon name={Icons.location} size={16} color="#0E9F6E" />
               </View>
               <View style={styles.useGpsTextWrap}>
-                <Text style={styles.useGpsTitle}>
-                  {language === 'mr' ? '🎯 थेट GPS स्थान वापरा (Live GPS)' : '🎯 Use Live Phone GPS'}
-                </Text>
-                <Text style={styles.useGpsSub}>
-                  {language === 'mr'
-                    ? 'चालू GPS द्वारे जवळच्या बाजार समित्यांचे अंतर मोजा'
-                    : 'Detect current location and recalculate distance to all Mandis'}
-                </Text>
+                <Text style={styles.useGpsTitle}>{t('transport.useGpsTitle')}</Text>
+                <Text style={styles.useGpsSub}>{t('transport.useGpsSub')}</Text>
               </View>
             </Pressable>
 
@@ -536,11 +479,7 @@ export default function ExploreScreen() {
               <TextInput
                 value={customVillageText}
                 onChangeText={setCustomVillageText}
-                placeholder={
-                  language === 'mr'
-                    ? 'गावाचे किंवा तालुक्याचे नाव शोधा...'
-                    : 'Search village, taluka, or city...'
-                }
+                placeholder={t('transport.villageSearchPlaceholder')}
                 placeholderTextColor={Brand.inkFaint}
                 onSubmitEditing={() => {
                   if (customVillageText.trim().length > 1) {
@@ -552,11 +491,14 @@ export default function ExploreScreen() {
               />
               {searchingVillage && <ActivityIndicator size="small" color={Brand.ink} />}
             </View>
+            {villageError ? (
+              <Text style={styles.villageErrorText} accessibilityLiveRegion="polite">
+                {villageError}
+              </Text>
+            ) : null}
 
             {/* Popular quick villages/cities */}
-            <Text style={styles.quickLabel}>
-              {language === 'mr' ? 'लोकप्रिय गावे / शहरे (Quick Select):' : 'Popular Regions:'}
-            </Text>
+            <Text style={styles.quickLabel}>{t('transport.quickSelectLabel')}</Text>
             <View style={styles.quickChipsWrap}>
               {[
                 'पुणे (Pune)',
@@ -1003,5 +945,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: Brand.ink,
+  },
+  villageErrorText: {
+    color: Brand.danger,
+    fontSize: 11.5,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginTop: -6,
+    paddingHorizontal: 4,
   },
 });

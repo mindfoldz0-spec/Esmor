@@ -1,56 +1,112 @@
-# Welcome to your Expo app 👋
+# Esmor
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Voice-first app for rural Maharashtra: a farmer/kirana/entrepreneur marketplace
+with an agentic voice-AI listing assistant, rural freight (transport pooling),
+and a Trilingual (English / Hindi / Marathi) onboarding experience — built with
+Expo (React Native) and targeted at Android.
 
-## Get started
+## What's inside
 
-1. Install dependencies
+| Area | Screen | Notes |
+| --- | --- | --- |
+| Onboarding | `src/app/(onboarding)/` | Language → details → location → gender → consumer/producer → producer role. Per-step voice prompts play automatically. |
+| Home | `src/app/(tabs)/index.tsx` | Role-aware workspace. Marketplace and Freight Pooling are featured. |
+| Marketplace | `src/app/(tabs)/activity.tsx` | Buy produce, list your own with the voice-AI agent, browse categories. |
+| Shared Transport | `src/app/(tabs)/explore.tsx` | Real GPS location, OSM/OSRM routing, mandi matching, ride booking, live vehicle tracking (animated SVG map). |
+| Orders & bookings | `src/app/orders.tsx` | Everything you've bought or booked on this device. |
+| Notifications | `src/app/notifications.tsx` | Local test pushes, token registration, activity log. |
+| Profile | `src/app/profile.tsx` | Language switch, reset, links to orders and notifications. |
 
-   ```bash
-   npm install
-   ```
+## Tech stack
 
-2. Start the app
+- Expo SDK 57 · React Native 0.86 · React 19
+- expo-router (typed routes, file-based routing in `src/app/`)
+- expo-sqlite (native persistence) with localStorage shims on web (`*.web.ts`)
+- expo-audio (voice prompts + native speech-to-text)
+- expo-location, expo-image-picker, expo-notifications, expo-symbols
+- Groq (chat/STT) + Sarvam AI (TTS)
+- TypeScript (strict), ESLint (eslint-config-expo)
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting started
 
 ```bash
-npm run reset-project
+npm install
+npx expo start            # then press 'a' for Android, or scan with dev build
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+The app stores everything on-device (SQLite): profile, marketplace listings and
+orders, freight bookings, and the runtime voice cache. No account or backend is
+required.
 
-### Other setup steps
+### Checks
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run typecheck   # tsc --noEmit
+npm run lint        # expo lint
+```
 
-## Learn more
+## Voice prompts
 
-To learn more about developing your project with Expo, look at the following resources:
+Pre-generated page voice prompts ship as **binary assets** in `assets/voices/`
+(generated with Sarvam `bulbul:v4-flash`). The JS bundle does *not* embed them;
+`src/constants/pregenerated-voice-assets.ts` maps `"{language}:{voiceKey}"` to a
+Metro asset id. Prompts that are synthesized on the fly at runtime are cached
+per-device in SQLite (`voice_cache`).
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+To regenerate or extend the bundled prompts:
 
-## Join the community
+```bash
+# 1. Put `sarvam_api=<key>` in .env
+# 2. Edit PROMPTS in scripts/generate-voices.js, then:
+node scripts/generate-voices.js
+```
 
-Join our community of developers creating universal apps.
+## Configuration
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+All configuration lives in environment variables — see `.env.example` for the
+full list (Groq/Sarvam keys, notification server, EAS project id). `.env` is
+git-ignored and must never be committed. For EAS builds, prefer
+[EAS environment
+variables](https://docs.expo.dev/eas/environment-variables/) over hardcoding
+secrets in `eas.json`.
+
+Note: the app is intentionally **local-first** — marketplace listings and
+bookings are stored on-device and are not synced to a backend.
+
+## Push notifications
+
+See [`docs/notifications.md`](docs/notifications.md) for the full guide. Short
+version: `Profile → Notifications → Enable notifications`, then send a test
+push. Remote pushes additionally need an EAS project id and push credentials.
+The included dev server (`scripts/push-server.mjs`) collects tokens and fans
+out pushes; set `PUSH_SERVER_TOKEN` (and the matching
+`EXPO_PUBLIC_NOTIFICATION_SERVER_TOKEN`) before exposing it beyond localhost.
+
+## Project layout
+
+```
+src/app/                 routes (Expo Router)
+  (onboarding)/          language → details → location → gender → account-type → role
+  (tabs)/                home / explore (transport) / activity (marketplace)
+  orders.tsx             marketplace orders + transport bookings
+  profile.tsx, notifications.tsx
+src/components/          reusable UI (marketplace, transport, onboarding, home, …)
+src/constants/           theme (Brand palette), role workspace config, voice assets
+src/i18n/                languages + fully-typed translation dictionaries (en/hi/mr)
+src/lib/                 stores (SQLite/web), services (voice, STT, agent, maps)
+src/providers/           app/notification/onboarding/voice providers
+src/types/               shared TypeScript types
+assets/voices/           pre-generated TTS clips (binary)
+scripts/                 generate-voices.js, decode-voices.js, push-server.mjs, …
+```
+
+## Build
+
+```bash
+npx eas-cli build --profile preview --platform android   # internal APK
+npx eas-cli build --profile production --platform android
+```
+
+The `preview` profile produces an APK for internal distribution. `ios/` and
+`android/` are generated by CNG — do not commit or hand-edit them; configure
+native behavior via `app.json` and the `expo-*` config plugins.
