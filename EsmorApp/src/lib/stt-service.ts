@@ -18,6 +18,13 @@ const SARVAM_API_KEY =
   process.env.sarvam_api ||
   '';
 
+// Vocabulary hint per language so Whisper's transcription doesn't drift into the other script.
+const STT_PROMPT: Record<Language, string> = {
+  en: 'farmer produce vegetables fruits grains onion tomato mango price crate quintal kilo market',
+  hi: 'किसान उपज सब्जी फल अनाज प्याज टमाटर आम भाव क्रेट क्विंटल किलो',
+  mr: 'शेतकरी उत्पादन भाजीपाला फळे धान्य कांदा टोमॅटो आंबा भाव क्रेट क्विंटल किलो',
+};
+
 /**
  * Transcribe recorded audio using Groq Whisper-large-v3-turbo with
  * automatic fallback to Sarvam AI STT (saarika:v2.5).
@@ -35,10 +42,7 @@ export async function transcribeAudioBlob(
       groqFormData.append('file', audioBlob, 'recording.webm');
       groqFormData.append('model', 'whisper-large-v3-turbo');
       groqFormData.append('language', langCode);
-      groqFormData.append(
-        'prompt',
-        'शेतकरी उत्पादन भाजीपाला फळे धान्य कांदा टोमॅटो आंबा भाव क्रेट क्विंटल किलो'
-      );
+      groqFormData.append('prompt', STT_PROMPT[language] ?? STT_PROMPT.hi);
 
       const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
@@ -120,10 +124,7 @@ export async function transcribeNativeAudioFile(
       } as unknown as Blob);
       groqFormData.append('model', 'whisper-large-v3-turbo');
       groqFormData.append('language', langCode);
-      groqFormData.append(
-        'prompt',
-        'शेतकरी उत्पादन भाजीपाला फळे धान्य कांदा टोमॅटो आंबा भाव क्रेट क्विंटल किलो'
-      );
+      groqFormData.append('prompt', STT_PROMPT[language] ?? STT_PROMPT.hi);
 
       const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
@@ -204,116 +205,156 @@ export class SpeechToTextController {
     getStatus(): { url: string | null };
   } | null = null;
   private isListening = false;
+  private isStarting = false;
+  private startGeneration = 0;
 
   async startListening(
     language: Language,
     onInterimText?: (text: string) => void
   ): Promise<boolean> {
-    if (this.isListening) return true;
+    // A tap while a start (permission / getUserMedia / prepare) is still in
+    // flight must not create a second recorder — it would leave the first one
+    // recording with no way to stop it.
+    if (this.isListening || this.isStarting) return true;
+
+    this.isStarting = true;
+    const generation = ++this.startGeneration;
     this.audioChunks = [];
 
-    // Web platform
-    if (Platform.OS === 'web') {
-      try {
-        // 1. Try Browser SpeechRecognition for instant live dictation
-        const SpeechRec =
-          typeof window !== 'undefined'
-            ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-            : null;
+    try {
+      // Web platform
+      if (Platform.OS === 'web') {
+        try {
+          // 1. Try Browser SpeechRecognition for instant live dictation
+          const SpeechRec =
+            typeof window !== 'undefined'
+              ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+              : null;
 
-        if (SpeechRec) {
-          try {
-            const recognition = new SpeechRec();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang =
-              language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+          if (SpeechRec) {
+            try {
+              const recognition = new SpeechRec();
+              recognition.continuous = true;
+              recognition.interimResults = true;
+              recognition.lang =
+                language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
 
-            recognition.onresult = (event: any) => {
-              let liveText = '';
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
-                liveText += event.results[i][0].transcript;
-              }
-              if (liveText && onInterimText) {
-                onInterimText(liveText);
-              }
-            };
+              recognition.onresult = (event: any) => {
+                let liveText = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                  liveText += event.results[i][0].transcript;
+                }
+                if (liveText && onInterimText) {
+                  onInterimText(liveText);
+                }
+              };
 
-            recognition.onerror = () => {
-              // Ignore web speech errors, MediaRecorder fallback will handle transcription
-            };
+              recognition.onerror = () => {
+                // Ignore web speech errors, MediaRecorder fallback will handle transcription
+              };
 
-            recognition.start();
-            this.webSpeechRecognition = recognition;
-          } catch (e) {
-            console.warn('Browser SpeechRecognition init error:', e);
-          }
-        }
-
-        // 2. Also start MediaRecorder for reliable audio capture & Groq Whisper transcription
-        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          this.stream = stream;
-
-          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : MediaRecorder.isTypeSupported('audio/webm')
-              ? 'audio/webm'
-              : '';
-
-          const recorder = mimeType
-            ? new MediaRecorder(stream, { mimeType })
-            : new MediaRecorder(stream);
-
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              this.audioChunks.push(e.data);
+              recognition.start();
+              this.webSpeechRecognition = recognition;
+            } catch (e) {
+              console.warn('Browser SpeechRecognition init error:', e);
             }
-          };
+          }
 
-          recorder.start(250);
-          this.mediaRecorder = recorder;
-          this.isListening = true;
-          return true;
-        }
-      } catch (err) {
-        console.warn('Microphone permission / mediaRecorder failed on web:', err);
-        return false;
-      }
-    }
+          // 2. Also start MediaRecorder for reliable audio capture & Groq Whisper transcription
+          if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (generation !== this.startGeneration) {
+              // Cancelled while the permission prompt was up.
+              stream.getTracks().forEach((track) => track.stop());
+              return false;
+            }
+            this.stream = stream;
 
-    // Native iOS & Android: record with expo-audio, transcribe the file afterwards
-    if (Platform.OS !== 'web') {
-      try {
-        const permission = await requestRecordingPermissionsAsync();
-        if (!permission.granted) {
-          console.warn('Microphone permission was not granted.');
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+              ? 'audio/webm;codecs=opus'
+              : MediaRecorder.isTypeSupported('audio/webm')
+                ? 'audio/webm'
+                : '';
+
+            const recorder = mimeType
+              ? new MediaRecorder(stream, { mimeType })
+              : new MediaRecorder(stream);
+
+            recorder.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) {
+                this.audioChunks.push(e.data);
+              }
+            };
+
+            recorder.start(250);
+            this.mediaRecorder = recorder;
+            this.isListening = true;
+            return true;
+          }
+        } catch (err) {
+          console.warn('Microphone permission / mediaRecorder failed on web:', err);
           return false;
         }
-
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-
-        // eslint-disable-next-line import/namespace -- re-exported through the package's default-class chain; TS resolves it correctly
-        const recorder = new AudioModule.AudioRecorder({ ...RecordingPresets.LOW_QUALITY });
-        await recorder.prepareToRecordAsync();
-        recorder.record();
-
-        this.recorder = recorder;
-        this.isListening = true;
-        return true;
-      } catch (err) {
-        console.warn('Native audio recording failed to start:', err);
-        return false;
       }
-    }
 
-    // Web: browser SpeechRecognition is running but MediaRecorder is unavailable.
-    // Live dictation still works through onInterimText.
-    this.isListening = true;
-    return true;
+      // Native iOS & Android: record with expo-audio, transcribe the file afterwards
+      if (Platform.OS !== 'web') {
+        try {
+          const permission = await requestRecordingPermissionsAsync();
+          if (generation !== this.startGeneration) {
+            return false;
+          }
+          if (!permission.granted) {
+            console.warn('Microphone permission was not granted.');
+            return false;
+          }
+
+          await setAudioModeAsync({
+            allowsRecording: true,
+            playsInSilentMode: true,
+          });
+          if (generation !== this.startGeneration) {
+            return false;
+          }
+
+          // High-quality AAC (m4a) so Whisper transcribes rural speech accurately.
+          // eslint-disable-next-line import/namespace -- re-exported through the package's default-class chain; TS resolves it correctly
+          const recorder = new AudioModule.AudioRecorder({ ...RecordingPresets.HIGH_QUALITY });
+          await recorder.prepareToRecordAsync();
+          if (generation !== this.startGeneration) {
+            try {
+              recorder.stop();
+            } catch {
+              // Ignore
+            }
+            return false;
+          }
+          recorder.record();
+          if (generation !== this.startGeneration) {
+            try {
+              recorder.stop();
+            } catch {
+              // Ignore
+            }
+            return false;
+          }
+
+          this.recorder = recorder;
+          this.isListening = true;
+          return true;
+        } catch (err) {
+          console.warn('Native audio recording failed to start:', err);
+          return false;
+        }
+      }
+
+      // Web: browser SpeechRecognition is running but MediaRecorder is unavailable.
+      // Live dictation still works through onInterimText.
+      this.isListening = true;
+      return true;
+    } finally {
+      this.isStarting = false;
+    }
   }
 
   async stopListening(language: Language): Promise<string> {
@@ -402,6 +443,9 @@ export class SpeechToTextController {
   }
 
   cancel() {
+    // Invalidate any start that is still in flight so its recorder is stopped.
+    this.startGeneration++;
+    this.isStarting = false;
     this.isListening = false;
     if (this.recorder) {
       this.recorder.stop().catch(() => {});

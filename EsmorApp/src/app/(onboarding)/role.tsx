@@ -72,6 +72,17 @@ export default function RoleScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The Women Entrepreneur persona is only relevant to women. For male
+  // users the card is hidden and cannot be submitted — even if it was
+  // selected earlier and the gender was changed afterwards.
+  const isMale = form.gender === 'male';
+  const visibleOptions = isMale
+    ? ROLE_OPTIONS.filter((option) => option.value !== 'entrepreneur')
+    : ROLE_OPTIONS;
+  const selectedRole = isMale && form.role === 'entrepreneur' ? null : form.role;
+  const voiceKey = isMale ? 'role.intro_male' : 'role.intro';
+  const voiceFallbackText = isMale ? t('role.voiceIntroMale') : undefined;
+
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
@@ -110,7 +121,7 @@ export default function RoleScreen() {
       return;
     }
 
-    if (!form.role) {
+    if (!selectedRole) {
       setError(t('role.error'));
       return;
     }
@@ -125,7 +136,7 @@ export default function RoleScreen() {
         phone: form.phone.trim(),
         gender: form.gender,
         category: form.category ?? 'producer',
-        role: form.role,
+        role: selectedRole,
         language,
         location: form.location,
       });
@@ -143,7 +154,8 @@ export default function RoleScreen() {
     <OnboardingShell
       step={6}
       totalSteps={6}
-      voiceKey="role.intro"
+      voiceKey={voiceKey}
+      voiceFallbackText={voiceFallbackText}
       eyebrow={t('role.eyebrow')}
       title={t('role.title')}
       subtitle={t('role.subtitle')}
@@ -157,7 +169,7 @@ export default function RoleScreen() {
         />
       }>
       <View style={styles.list} accessibilityRole="radiogroup">
-        {ROLE_OPTIONS.map((option) => (
+        {visibleOptions.map((option) => (
           <RoleCard
             key={option.value}
             role={option.value}
@@ -165,7 +177,7 @@ export default function RoleScreen() {
             badge={t(option.badgeKey)}
             description={t(option.descKey)}
             accessibilityLabel={t(option.accessibilityKey)}
-            selected={form.role === option.value}
+            selected={selectedRole === option.value}
             imageSource={getRoleImage(option.value)}
             onPress={() => handleSelect(option.value)}
           />

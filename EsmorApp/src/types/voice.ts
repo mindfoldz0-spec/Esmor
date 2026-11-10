@@ -13,6 +13,7 @@ export type VoicePromptKey =
   | 'account_type.select_consumer'
   | 'account_type.select_producer'
   | 'role.intro'
+  | 'role.intro_male'
   | 'role.select_farmer'
   | 'role.select_kirana'
   | 'role.select_entrepreneur'

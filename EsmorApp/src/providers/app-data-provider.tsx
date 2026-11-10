@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { useI18n, type Language } from '@/i18n';
+import { useI18n, DEFAULT_LANGUAGE, type Language } from '@/i18n';
 import {
   deleteProfile,
   getProfile,
@@ -75,7 +75,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const resetProfile = useCallback(async () => {
     await deleteProfile();
     setProfile(null);
-    setLanguage('en');
+    setLanguage(DEFAULT_LANGUAGE);
   }, [setLanguage]);
 
   const changeLanguage = useCallback(

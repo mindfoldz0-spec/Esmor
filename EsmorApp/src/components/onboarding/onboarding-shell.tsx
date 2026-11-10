@@ -24,6 +24,8 @@ type OnboardingShellProps = {
   step: number;
   totalSteps?: number;
   voiceKey?: VoicePromptKey | string;
+  /** Text to synthesize at runtime when no bundled/cached audio exists for this key. */
+  voiceFallbackText?: string;
   autoPlayVoice?: boolean;
   eyebrow: string;
   title: string;
@@ -37,6 +39,7 @@ export function OnboardingShell({
   step,
   totalSteps = DEFAULT_TOTAL_STEPS,
   voiceKey,
+  voiceFallbackText,
   autoPlayVoice = true,
   eyebrow,
   title,
@@ -54,13 +57,13 @@ export function OnboardingShell({
     hasPlayedIntroRef.current = true;
 
     const timer = setTimeout(() => {
-      speak(voiceKey);
+      speak(voiceKey, { fallbackText: voiceFallbackText });
     }, 450);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [voiceKey, autoPlayVoice, speak]);
+  }, [voiceKey, autoPlayVoice, speak, voiceFallbackText]);
 
   return (
     <View style={styles.screen}>
@@ -95,7 +98,7 @@ export function OnboardingShell({
 
               <View style={styles.topBarRight}>
                 {voiceKey ? (
-                  <VoiceAssistantButton voiceKey={voiceKey} />
+                  <VoiceAssistantButton voiceKey={voiceKey} fallbackText={voiceFallbackText} />
                 ) : null}
 
                 <Text style={styles.stepText} allowFontScaling={false}>

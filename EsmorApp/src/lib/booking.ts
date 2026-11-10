@@ -3,6 +3,14 @@ import type { CargoCategory, TransportBooking, TransportRide, UnitType } from '@
 /** Estimate for chartering a tempo outright for a 50–80 km run. */
 const PRIVATE_CHARTER_ESTIMATE = 1800;
 
+let idCounter = 0;
+
+/** Collision-safe id — two actions in the same millisecond would otherwise share one. */
+export function uniqueId(prefix: string): string {
+  idCounter += 1;
+  return `${prefix}-${Date.now()}-${idCounter}`;
+}
+
 export type BookingRequest = {
   ride: TransportRide;
   userName: string;
@@ -20,7 +28,7 @@ export function createTransportBooking(params: BookingRequest): TransportBooking
   const totalFare = params.ride.farePerUnit * params.quantity;
 
   return {
-    id: `book-${Date.now()}`,
+    id: uniqueId('book'),
     rideId: params.ride.id,
     userName: params.userName,
     userPhone: params.userPhone,

@@ -203,7 +203,9 @@ export function PostRideModal({ visible, onClose, onRideCreated }: PostRideModal
                   style={styles.input}
                   keyboardType="numeric"
                   value={String(capacityPercent)}
-                  onChangeText={(val) => setCapacityPercent(Number(val) || 0)}
+                  onChangeText={(val) =>
+                    setCapacityPercent(Math.min(100, Math.max(0, Number(val) || 0)))
+                  }
                   placeholder="50"
                   placeholderTextColor={Brand.inkFaint}
                 />

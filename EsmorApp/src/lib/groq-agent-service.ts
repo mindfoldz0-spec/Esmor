@@ -55,35 +55,44 @@ export async function askListingAgent(
   currentDraft: Partial<ListingDraft>,
   conversationHistory: { role: 'user' | 'assistant'; content: string }[]
 ): Promise<AgentResponse> {
+  const LANGUAGE_NAME: Record<Language, string> = {
+    mr: 'Marathi (मराठी)',
+    hi: 'Hindi (हिंदी)',
+    en: 'English (English)',
+  };
+  const targetLanguage = LANGUAGE_NAME[language] ?? LANGUAGE_NAME.en;
+
   const systemPrompt = `
-You are 'ई-समौर बाजार सहाय्यक' (Esmor Rural Market Agent).
+You are 'Esmor Market Agent' (ई-समौर बाजार सहायक).
 Your goal is to help Indian rural farmers, artisans, and kirana producers list their products in the marketplace through simple, friendly conversation.
 Unlike Amazon or Flipkart with complicated forms, you collect details through conversation.
 
-Current Language: ${language === 'mr' ? 'Marathi (मराठी)' : language === 'hi' ? 'Hindi (हिंदी)' : 'English'}
+App UI language (CHOSEN BY THE USER): ${targetLanguage}
 Current Product Draft: ${JSON.stringify(currentDraft)}
 
 Key Rules:
-1. Speak warmly, respectfully, and simply in the chosen language.
+1. Speak warmly, respectfully, and simply — but ONLY in ${targetLanguage}.
 2. If the user mentions what they want to sell, understand the item and ask for price and quantity.
 3. If the user doesn't know the price or asks 'whatever is best / जे योग्य वाटेल ते भाव ठेवा / जो सही लगे', give a recommended fair market price based on current Maharashtra Mandi rates, and ask if they agree.
 4. Extract title, category (vegetables, fruits, grains, dairy, equipment, kirana, handcrafts), price (number), unit (kg, quintal, crate, sack, box, liter, piece), and quantity.
 5. When the user confirms the details, mark 'isReady': true.
 6. YOU MUST ALWAYS append a JSON block at the very end of your response inside \`\`\`json { ... } \`\`\`.
 
+CRITICAL LANGUAGE RULE: Every word you produce — replyText, suggestedQuickReplies, and the productDraft title/description — MUST be written in ${targetLanguage} ONLY. The user chose ${targetLanguage} as their app language; never reply in any other language, no matter what language the user writes or speaks in. Do not mix languages within a sentence.
+
 JSON Structure:
 \`\`\`json
 {
-  "replyText": "your friendly response to speak to the producer",
-  "suggestedQuickReplies": ["Short reply 1", "Short reply 2"],
+  "replyText": "your friendly response to speak to the producer, in ${targetLanguage} only",
+  "suggestedQuickReplies": ["<short reply in ${targetLanguage}>", "<short reply in ${targetLanguage}>"],
   "productDraft": {
-    "title": "Clean product title in Marathi or English",
+    "title": "Clean product title in ${targetLanguage}",
     "category": "vegetables | fruits | grains | dairy | equipment | kirana | handcrafts",
     "price": 350,
     "unit": "crate",
     "quantity": 20,
     "suggestedPrice": 350,
-    "description": "Attractive brief description of the product",
+    "description": "Attractive brief description of the product, in ${targetLanguage}",
     "isReady": true or false
   }
 }
@@ -172,6 +181,11 @@ function runLocalRuleAgent(
   const lower = userMessage.toLowerCase();
   const nextDraft: Partial<ListingDraft> = { ...draft };
 
+  // Normalize Devanagari digits to ASCII so extraction works for Hindi/Marathi input.
+  const asciiMessage = userMessage.replace(/[०-९]/g, (d) =>
+    String('०१२३४५६७८९'.indexOf(d))
+  );
+
   // Detect product match from benchmark
   let detectedTitle = draft.title || '';
 
@@ -187,13 +201,13 @@ function runLocalRuleAgent(
   }
 
   // Detect price
-  const priceMatch = userMessage.match(/(\d+)\s*(रुपये|रु|rs|inr|\/)/i);
+  const priceMatch = asciiMessage.match(/(\d+)\s*(रुपये|रु|rs|inr|\/)/i);
   if (priceMatch) {
     nextDraft.price = parseInt(priceMatch[1], 10);
   }
 
   // Detect quantity
-  const qtyMatch = userMessage.match(/(\d+)\s*(क्रेट|पोती|बोरी|किलो|डझन|पेटी|लिटर|crate|sack|kg|box|quintal)/i);
+  const qtyMatch = asciiMessage.match(/(\d+)\s*(क्रेट|पोती|बोरी|किलो|डझन|पेटी|लिटर|crate|sack|kg|box|quintal)/i);
   if (qtyMatch) {
     nextDraft.quantity = parseInt(qtyMatch[1], 10);
   }

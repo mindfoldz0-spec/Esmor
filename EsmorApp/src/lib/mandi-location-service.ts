@@ -216,7 +216,7 @@ export async function reverseGeocodeUser(lat: number, lon: number): Promise<stri
     console.warn('OSM Nominatim reverse geocode failed:', err);
   }
 
-  return `स्थान (${lat.toFixed(3)}, ${lon.toFixed(3)})`;
+  return `Location (${lat.toFixed(3)}, ${lon.toFixed(3)})`;
 }
 
 /**
@@ -313,7 +313,7 @@ export async function getRealUserLocation(savedProfile?: {
     return {
       latitude: savedProfile.latitude,
       longitude: savedProfile.longitude,
-      name: savedProfile.label || 'माझे गाव (Saved Location)',
+      name: savedProfile.label || 'Saved village location',
       district: 'Maharashtra',
       isLiveGps: false,
     };
@@ -515,7 +515,7 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
       farePerUnit,
       unitType: template.unitType,
       estimatedMarketDistanceKm: dist,
-      pickupHub: `${userLoc.name.split(',')[0]} ग्रामपंचायत चौक / मुख्य रस्ता`,
+      pickupHub: `${userLoc.name.split(',')[0]} village center / main road`,
       isVerified: true,
       fromCoords: {
         latitude: userLoc.latitude,
@@ -532,7 +532,7 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
       depotCoords: {
         latitude: depotLat,
         longitude: depotLon,
-        name: 'वाहन तळ / ड्रायव्हर डेपो',
+        name: 'Vehicle depot / pickup point',
       },
       mandiCategory: mandi.category,
       voiceSummary: {

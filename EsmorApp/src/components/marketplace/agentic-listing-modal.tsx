@@ -287,7 +287,10 @@ function AgenticListingContent({
   };
 
   const handlePublish = async () => {
-    if (!draft.title || !draft.price || !draft.quantity) return;
+    if (!draft.title || !draft.price || !draft.quantity) {
+      setPublishError(t('agentModal.publishError'));
+      return;
+    }
 
     setPublishError(null);
     setIsPublishing(true);

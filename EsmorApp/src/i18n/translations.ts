@@ -103,6 +103,7 @@ const en = {
   'role.error': 'Choose your profile role to continue.',
   'role.privateNote': 'You will get a dedicated workspace tailored to your profession.',
   'role.saving': 'Setting up your workspace…',
+  'role.voiceIntroMale': 'What kind of producer are you? Choose Farmer or Kirana Store Owner.',
 
   'workspace.eyebrow': 'YOUR WORKSPACE',
   'workspace.title': 'Built for {role}',
@@ -617,6 +618,7 @@ const hi: TranslationDictionary = {
   'role.error': 'जारी रखने के लिए अपनी भूमिका चुनें।',
   'role.privateNote': 'आपको आपके व्यवसाय के अनुसार समर्पित वर्कस्पेस मिलेगा।',
   'role.saving': 'आपका वर्कस्पेस तैयार किया जा रहा है…',
+  'role.voiceIntroMale': 'आप किस प्रकार के उत्पादक हैं? किसान या किराना दुकान मालिक में से चुनें।',
 
   'workspace.eyebrow': 'आपका वर्कस्पेस',
   'workspace.title': '{role} के लिए बनाया गया',
@@ -1125,6 +1127,7 @@ const mr: TranslationDictionary = {
   'role.error': 'पुढे जाण्यासाठी तुमची भूमिका निवडा.',
   'role.privateNote': 'तुम्हाला तुमच्या व्यवसायानुसार विशेष कार्यक्षेत्र मिळेल.',
   'role.saving': 'तुमचे कार्यक्षेत्र तयार होत आहे…',
+  'role.voiceIntroMale': 'तुम्ही कोणत्या प्रकारचे उत्पादक आहात? शेतकरी किंवा किराणा दुकान मालक निवडा.',
 
   'workspace.eyebrow': 'तुमचे कार्यक्षेत्र',
   'workspace.title': '{role} साठी बनवलेले',

@@ -13,6 +13,7 @@ import {
 import { AppIcon, Icons } from '@/components/app-icon';
 import { Brand } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { uniqueId } from '@/lib/booking';
 import { createMarketplaceOrder } from '@/lib/marketplace-store';
 import type { MarketplaceOrder, MarketplaceProduct } from '@/types/marketplace';
 import type { Profile } from '@/types/profile';
@@ -69,7 +70,7 @@ export function BuyProductModal({
     setSubmitting(true);
     try {
       const order: MarketplaceOrder = {
-        id: `order-${Date.now()}`,
+        id: uniqueId('order'),
         productId: product.id,
         productTitle: product.title,
         quantity: safeQuantity,

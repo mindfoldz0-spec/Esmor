@@ -16,9 +16,10 @@ import type { VoicePromptKey } from '@/types/voice';
 
 type VoiceAssistantButtonProps = {
   voiceKey?: VoicePromptKey | string;
+  fallbackText?: string;
 };
 
-export function VoiceAssistantButton({ voiceKey }: VoiceAssistantButtonProps) {
+export function VoiceAssistantButton({ voiceKey, fallbackText }: VoiceAssistantButtonProps) {
   const { isSpeaking, speak, stop, activeKey } = useVoice();
   const { t } = useI18n();
 
@@ -48,7 +49,7 @@ export function VoiceAssistantButton({ voiceKey }: VoiceAssistantButtonProps) {
     if (isSpeaking) {
       stop();
     } else if (voiceKey) {
-      speak(voiceKey);
+      speak(voiceKey, { fallbackText });
     }
   };
 

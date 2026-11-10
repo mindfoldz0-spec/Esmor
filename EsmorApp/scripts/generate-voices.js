@@ -167,6 +167,14 @@ const PROMPTS = [
     },
   },
   {
+    key: 'role.intro_male',
+    texts: {
+      hi: 'आप किस प्रकार के उत्पादक हैं? किसान या किराना दुकान मालिक में से चुनें।',
+      mr: 'तुम्ही कोणत्या प्रकारचे उत्पादक आहात? शेतकरी किंवा किराणा दुकान मालक निवडा.',
+      en: 'What kind of producer are you? Choose Farmer or Kirana Store Owner.',
+    },
+  },
+  {
     key: 'role.select_farmer',
     texts: {
       hi: 'आपने किसान प्रोफ़ाइल चुनी है।',
