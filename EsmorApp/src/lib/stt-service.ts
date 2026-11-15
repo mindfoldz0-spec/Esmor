@@ -358,6 +358,11 @@ export class SpeechToTextController {
   }
 
   async stopListening(language: Language): Promise<string> {
+    if (this.isStarting) {
+      this.cancel();
+      return '';
+    }
+
     this.isListening = false;
 
     // Stop web speech recognition if active

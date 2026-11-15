@@ -47,7 +47,8 @@ export async function bookTransportSpace(params: {
 
 export async function createCustomRide(ride: TransportRide): Promise<void> {
   const customRides = readJsonArray<TransportRide>(CUSTOM_RIDES_KEY);
-  writeJsonArray(CUSTOM_RIDES_KEY, [ride, ...customRides]);
+  const remaining = customRides.filter((r) => r.id !== ride.id);
+  writeJsonArray(CUSTOM_RIDES_KEY, [ride, ...remaining]);
 }
 
 /** Delete every transport row this device holds (used by Reset profile). */

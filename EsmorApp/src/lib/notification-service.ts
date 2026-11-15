@@ -160,7 +160,14 @@ function describeTrigger(
     return null;
   }
 
-  const value = (trigger as { value?: unknown }).value;
+  const triggerObj = trigger as Record<string, unknown>;
+  const seconds = typeof triggerObj.seconds === 'number' ? triggerObj.seconds : null;
+
+  if (seconds !== null) {
+    return new Date(Date.now() + seconds * 1000).toISOString();
+  }
+
+  const value = triggerObj.value;
 
   if (value instanceof Date) {
     return value.toISOString();
@@ -168,6 +175,14 @@ function describeTrigger(
 
   if (typeof value === 'number') {
     return new Date(Date.now() + value * 1000).toISOString();
+  }
+
+  const date = triggerObj.date;
+  if (date instanceof Date) {
+    return date.toISOString();
+  }
+  if (typeof date === 'number') {
+    return new Date(date).toISOString();
   }
 
   return null;

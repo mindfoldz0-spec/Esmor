@@ -36,7 +36,7 @@ export function BuyProductModal({
   const { t } = useI18n();
 
   const [quantity, setQuantity] = useState(1);
-  const [deliveryAddress, setDeliveryAddress] = useState(profile?.location.label || '');
+  const [deliveryAddress, setDeliveryAddress] = useState(profile?.location?.label || '');
   const [buyerPhone, setBuyerPhone] = useState(profile?.phone || '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

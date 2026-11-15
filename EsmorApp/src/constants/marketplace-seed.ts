@@ -45,7 +45,7 @@ export const INITIAL_MARKETPLACE_PRODUCTS: MarketplaceProduct[] = [
     title: 'कोल्हापुरी सेंद्रिय गूळ (Organic Jaggery)',
     marathiTitle: 'कोल्हापुरी सेंद्रिय गूळ',
     hindiTitle: 'कोल्हापुरी जैविक गुड़',
-    category: 'dairy',
+    category: 'kirana',
     price: 65,
     unit: 'kg',
     quantityAvailable: 150,

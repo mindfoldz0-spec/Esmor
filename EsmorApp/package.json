@@ -50,7 +50,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "decode-voices": "node ./scripts/decode-voices.js",
+    "generate-voices": "node ./scripts/generate-voices.js",
     "postinstall": "node ./scripts/patch-expo-notifications.js"
   },
   "private": true

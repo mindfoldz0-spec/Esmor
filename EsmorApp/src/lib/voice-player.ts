@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { getVoiceSource, type VoiceSource } from '@/lib/voice-service';
+import { getVoiceSource, hashPromptText, type VoiceSource } from '@/lib/voice-service';
 import type { Language } from '@/i18n/languages';
 import type { VoicePromptKey } from '@/types/voice';
 
@@ -170,7 +170,8 @@ export async function playVoiceSource(
       // Audio mode set is best-effort
     }
 
-    const safeId = identifier.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const contentHash = hashPromptText(base64);
+    const safeId = `${identifier}_${contentHash}`.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileUri = `${FileSystem.cacheDirectory}voice_${safeId}.wav`;
 
     const info = await FileSystem.getInfoAsync(fileUri);
@@ -201,17 +202,46 @@ export async function playVoiceSource(
 }
 
 function attachEndListener(player: AudioPlayer, playId: number) {
-  player.addListener('playbackStatusUpdate', (status) => {
-    if (status.didJustFinish) {
-      if (currentPlayId === playId) {
-        notifySpeaking(false);
+  let cleanedUp = false;
+  const finish = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (currentPlayId === playId) {
+      notifySpeaking(false);
+      try {
         player.remove();
-        if (currentPlayer === player) {
-          currentPlayer = null;
-        }
+      } catch {
+        // Player may already be released
+      }
+      if (currentPlayer === player) {
+        currentPlayer = null;
       }
     }
+  };
+
+  player.addListener('playbackStatusUpdate', (status) => {
+    if (
+      status.didJustFinish ||
+      (Platform.OS === 'web' &&
+        !status.playing &&
+        status.currentTime > 0 &&
+        status.duration > 0 &&
+        status.currentTime >= status.duration)
+    ) {
+      finish();
+    }
   });
+
+  // expo-audio on Web uses HTMLAudioElement internally, which emits standard ended events
+  // but does not emit didJustFinish in playbackStatusUpdate.
+  if (Platform.OS === 'web') {
+    const webMedia = (player as any).media as HTMLAudioElement | undefined;
+    if (webMedia) {
+      const onEnded = () => finish();
+      webMedia.addEventListener('ended', onEnded, { once: true });
+      webMedia.addEventListener('error', onEnded, { once: true });
+    }
+  }
 }
 
 /**
@@ -234,6 +264,10 @@ export async function speakPrompt(
     }
     if (source) {
       await playVoiceSource(source, `${language}_${voiceKey}`, reqId);
+    } else {
+      if (reqId === activeRequestId) {
+        notifySpeaking(false);
+      }
     }
   } catch (err) {
     if (reqId === activeRequestId) {

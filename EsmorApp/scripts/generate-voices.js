@@ -1,14 +1,28 @@
+/* global __dirname, Buffer */
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
 const envPath = path.resolve(__dirname, '../.env');
-const envContent = fs.readFileSync(envPath, 'utf8');
-const match = envContent.match(/sarvam_api=([^\r\n]+)/);
-const apiKey = match ? match[1].trim() : '';
+let apiKey =
+  process.env.EXPO_PUBLIC_SARVAM_API_KEY ||
+  process.env.SARVAM_API_KEY ||
+  process.env.sarvam_api ||
+  '';
+
+if (!apiKey && fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  const match =
+    envContent.match(/EXPO_PUBLIC_SARVAM_API_KEY=([^\r\n]+)/) ||
+    envContent.match(/SARVAM_API_KEY=([^\r\n]+)/) ||
+    envContent.match(/sarvam_api=([^\r\n]+)/);
+  if (match) {
+    apiKey = match[1].trim();
+  }
+}
 
 if (!apiKey) {
-  console.error('Sarvam API key not found in .env!');
+  console.error('Sarvam API key not found in environment or .env!');
   process.exit(1);
 }
 

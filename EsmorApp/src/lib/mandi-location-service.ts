@@ -147,6 +147,18 @@ export function calculateDistanceKm(
   lat2: number,
   lon2: number
 ): number {
+  if (
+    typeof lat1 !== 'number' ||
+    typeof lon1 !== 'number' ||
+    typeof lat2 !== 'number' ||
+    typeof lon2 !== 'number' ||
+    Number.isNaN(lat1) ||
+    Number.isNaN(lon1) ||
+    Number.isNaN(lat2) ||
+    Number.isNaN(lon2)
+  ) {
+    return 1;
+  }
   const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -164,7 +176,7 @@ export function calculateDistanceKm(
  * Categorize a mandi by distance from user.
  */
 export function categorizeMandiDistance(distanceKm: number): MandiDistanceCategory {
-  if (distanceKm <= 45) {
+  if (typeof distanceKm !== 'number' || Number.isNaN(distanceKm) || distanceKm <= 45) {
     return 'nearby';
   }
   if (distanceKm <= 110) {
@@ -193,24 +205,27 @@ export async function reverseGeocodeUser(lat: number, lon: number): Promise<stri
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3500);
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'EsmorApp/1.0' },
-    });
-    clearTimeout(timeout);
-    if (res.ok) {
-      const data = await res.json();
-      const addr = data.address || {};
-      const primary = addr.village || addr.town || addr.city || addr.suburb || addr.hamlet;
-      const secondary = addr.county || addr.state_district || addr.state;
-      if (primary && secondary) {
-        return `${primary}, ${secondary}`;
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'EsmorApp/1.0' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const addr = data.address || {};
+        const primary = addr.village || addr.town || addr.city || addr.suburb || addr.hamlet;
+        const secondary = addr.county || addr.state_district || addr.state;
+        if (primary && secondary) {
+          return `${primary}, ${secondary}`;
+        }
+        if (primary) return primary;
+        if (data.display_name) {
+          return data.display_name.split(',').slice(0, 2).join(',').trim();
+        }
       }
-      if (primary) return primary;
-      if (data.display_name) {
-        return data.display_name.split(',').slice(0, 2).join(',').trim();
-      }
+    } finally {
+      clearTimeout(timeout);
     }
   } catch (err) {
     console.warn('OSM Nominatim reverse geocode failed:', err);
@@ -227,33 +242,36 @@ export async function geocodePlaceWithOsm(query: string): Promise<GeoPoint | nul
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
-    const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-      query.trim() + ', Maharashtra, India'
-    )}&format=json&limit=1`;
+    try {
+      const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+        query.trim() + ', Maharashtra, India'
+      )}&format=json&limit=1`;
 
-    const res = await fetch(searchUrl, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'EsmorApp/1.0' },
-    });
-    clearTimeout(timeout);
+      const res = await fetch(searchUrl, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'EsmorApp/1.0' },
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const item = data[0];
-        const lat = parseFloat(item.lat);
-        const lon = parseFloat(item.lon);
-        if (!isNaN(lat) && !isNaN(lon)) {
-          const parts = (item.display_name || '').split(',');
-          const shortName = parts.slice(0, 2).join(',').trim() || query;
-          return {
-            latitude: lat,
-            longitude: lon,
-            name: shortName,
-            district: parts[2]?.trim() || 'Maharashtra',
-          };
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const item = data[0];
+          const lat = parseFloat(item.lat);
+          const lon = parseFloat(item.lon);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            const parts = (item.display_name || '').split(',');
+            const shortName = parts.slice(0, 2).join(',').trim() || query;
+            return {
+              latitude: lat,
+              longitude: lon,
+              name: shortName,
+              district: parts[2]?.trim() || 'Maharashtra',
+            };
+          }
         }
       }
+    } finally {
+      clearTimeout(timeout);
     }
   } catch (err) {
     console.warn('OSM Nominatim search failed:', err);
@@ -326,10 +344,24 @@ export async function getRealUserLocation(savedProfile?: {
   };
 }
 
+const MAX_ROUTE_CACHE_ENTRIES = 50;
 const ROUTE_CACHE = new Map<
   string,
   { coordinates: RoutePoint[]; distanceKm: number; durationMinutes: number }
 >();
+
+function setCachedRoute(
+  key: string,
+  value: { coordinates: RoutePoint[]; distanceKm: number; durationMinutes: number }
+) {
+  if (ROUTE_CACHE.size >= MAX_ROUTE_CACHE_ENTRIES) {
+    const oldestKey = ROUTE_CACHE.keys().next().value;
+    if (oldestKey) {
+      ROUTE_CACHE.delete(oldestKey);
+    }
+  }
+  ROUTE_CACHE.set(key, value);
+}
 
 /**
  * Fetch road route geometry from Open Source Routing Machine (OSRM).
@@ -352,27 +384,30 @@ export async function fetchOsrmRoadRoute(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'EsmorApp/1.0' },
-    });
-    clearTimeout(timeoutId);
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'EsmorApp/1.0' },
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        const coordinates: RoutePoint[] = route.geometry.coordinates;
-        const distanceKm = Math.round((route.distance || 0) / 1000);
-        const durationMinutes = Math.round((route.duration || 0) / 60);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coordinates: RoutePoint[] = route.geometry.coordinates;
+          const distanceKm = Math.round((route.distance || 0) / 1000);
+          const durationMinutes = Math.round((route.duration || 0) / 60);
 
-        if (coordinates.length >= 2) {
-          const result = { coordinates, distanceKm, durationMinutes };
-          ROUTE_CACHE.set(cacheKey, result);
-          return result;
+          if (coordinates.length >= 2) {
+            const result = { coordinates, distanceKm, durationMinutes };
+            setCachedRoute(cacheKey, result);
+            return result;
+          }
         }
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   } catch {
     // When public demo server is slow or rate-limited on mobile data,
@@ -404,7 +439,7 @@ export async function fetchOsrmRoadRoute(
 
   const durationMinutes = Math.max(15, Math.round((directDistanceKm / 45) * 60));
   const fallbackResult = { coordinates, distanceKm: directDistanceKm, durationMinutes };
-  ROUTE_CACHE.set(cacheKey, fallbackResult);
+  setCachedRoute(cacheKey, fallbackResult);
   return fallbackResult;
 }
 
@@ -413,11 +448,25 @@ export async function fetchOsrmRoadRoute(
  * connecting them to nearby, regional, and terminal Mandis.
  */
 export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
+  const safeLoc: GeoPoint = {
+    ...DEFAULT_USER_LOCATION,
+    ...userLoc,
+    latitude:
+      typeof userLoc?.latitude === 'number' && !Number.isNaN(userLoc.latitude)
+        ? userLoc.latitude
+        : DEFAULT_USER_LOCATION.latitude,
+    longitude:
+      typeof userLoc?.longitude === 'number' && !Number.isNaN(userLoc.longitude)
+        ? userLoc.longitude
+        : DEFAULT_USER_LOCATION.longitude,
+    name: userLoc?.name || DEFAULT_USER_LOCATION.name,
+  };
+
   // Compute distance to each mandi and sort closest to farthest
   const mandisWithDistance = MAHARASHTRA_MANDIS.map((mandi) => {
     const dist = calculateDistanceKm(
-      userLoc.latitude,
-      userLoc.longitude,
+      safeLoc.latitude,
+      safeLoc.longitude,
       mandi.latitude,
       mandi.longitude
     );
@@ -496,8 +545,8 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
     );
 
     // Staging depot coordinates ~2-4 km from user
-    const depotLat = userLoc.latitude + (idx % 2 === 0 ? 0.025 : -0.022);
-    const depotLon = userLoc.longitude + (idx % 2 === 0 ? -0.02 : 0.024);
+    const depotLat = safeLoc.latitude + (idx % 2 === 0 ? 0.025 : -0.022);
+    const depotLon = safeLoc.longitude + (idx % 2 === 0 ? -0.02 : 0.024);
 
     return {
       id: `ride-geo-${mandi.id}-${idx}`,
@@ -505,7 +554,7 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
       driverPhone: template.driverPhone,
       vehicleType: template.vehicleType,
       vehicleNumber: template.vehicleNumber,
-      fromVillage: userLoc.name,
+      fromVillage: safeLoc.name,
       toMarket: `${mandi.marathiName} (${mandi.name})`,
       district: mandi.district,
       departureDate: idx === 1 ? 'आज रात्री (Tonight)' : 'उद्या (Tomorrow)',
@@ -515,13 +564,13 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
       farePerUnit,
       unitType: template.unitType,
       estimatedMarketDistanceKm: dist,
-      pickupHub: `${userLoc.name.split(',')[0]} village center / main road`,
+      pickupHub: `${safeLoc.name.split(',')[0]} village center / main road`,
       isVerified: true,
       fromCoords: {
-        latitude: userLoc.latitude,
-        longitude: userLoc.longitude,
-        name: userLoc.name,
-        district: userLoc.district,
+        latitude: safeLoc.latitude,
+        longitude: safeLoc.longitude,
+        name: safeLoc.name,
+        district: safeLoc.district,
       },
       toCoords: {
         latitude: mandi.latitude,
@@ -536,9 +585,9 @@ export function matchRidesForUserLocation(userLoc: GeoPoint): TransportRide[] {
       },
       mandiCategory: mandi.category,
       voiceSummary: {
-        mr: `${userLoc.name} ते ${mandi.marathiName} साठी ${template.driverName.split(' ')[0]} यांची गाडी उपलब्ध आहे. अंतर सुमारे ${dist} किमी असून भाडे ₹${farePerUnit} प्रति ${template.unitType === 'sack' ? 'पोते' : template.unitType === 'crate' ? 'क्रेट' : 'क्विंटल'}.`,
-        hi: `${userLoc.name} से ${mandi.hindiName} के लिए वाहन उपलब्ध है। दूरी ~${dist} किमी, किराया ₹${farePerUnit} प्रति ${template.unitType}.`,
-        en: `Vehicle available from ${userLoc.name} to ${mandi.name}. Distance ~${dist} km, fare ₹${farePerUnit} per ${template.unitType}.`,
+        mr: `${safeLoc.name} ते ${mandi.marathiName} साठी ${template.driverName.split(' ')[0]} यांची गाडी उपलब्ध आहे. अंतर सुमारे ${dist} किमी असून भाडे ₹${farePerUnit} प्रति ${template.unitType === 'sack' ? 'पोते' : template.unitType === 'crate' ? 'क्रेट' : 'क्विंटल'}.`,
+        hi: `${safeLoc.name} से ${mandi.hindiName} के लिए वाहन उपलब्ध है। दूरी ~${dist} किमी, किराया ₹${farePerUnit} प्रति ${template.unitType}.`,
+        en: `Vehicle available from ${safeLoc.name} to ${mandi.name}. Distance ~${dist} km, fare ₹${farePerUnit} per ${template.unitType}.`,
       },
     };
   });

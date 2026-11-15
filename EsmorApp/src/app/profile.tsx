@@ -116,7 +116,7 @@ export default function ProfileScreen() {
         resetTransportData(),
         clearVoiceCache(),
       ]);
-      // The protected root stack takes over and returns to onboarding.
+      router.replace('/(onboarding)/language' as any);
     } catch (cause) {
       console.warn('Could not reset the local profile.', cause);
       setResetting(false);

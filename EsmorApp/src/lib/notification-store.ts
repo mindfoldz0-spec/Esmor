@@ -65,7 +65,12 @@ function openDatabase() {
 }
 
 function getDatabase() {
-  databasePromise ??= openDatabase();
+  if (!databasePromise) {
+    databasePromise = openDatabase().catch((err) => {
+      databasePromise = null;
+      throw err;
+    });
+  }
   return databasePromise;
 }
 

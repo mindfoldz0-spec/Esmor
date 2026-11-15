@@ -29,8 +29,8 @@ export const MANDI_BENCHMARK_RATES: Record<
   onion: { price: 1400, unit: 'quintal', category: 'vegetables', notes: 'Nashik Red Onion ₹1300-1500 per quintal' },
   टोमॅटो: { price: 350, unit: 'crate', category: 'vegetables', notes: 'नारायणगाव टोमॅटो ₹300-400 प्रति क्रेट (२५ किलो)' },
   tomato: { price: 350, unit: 'crate', category: 'vegetables', notes: 'Fresh Tomato ₹300-400 per crate (25 kg)' },
-  गूळ: { price: 65, unit: 'kg', category: 'dairy', notes: 'कोल्हापुरी सेंद्रिय गूळ ₹60-70 प्रति किलो' },
-  jaggery: { price: 65, unit: 'kg', category: 'dairy', notes: 'Organic Jaggery ₹60-70 per kg' },
+  गूळ: { price: 65, unit: 'kg', category: 'kirana', notes: 'कोल्हापुरी सेंद्रिय गूळ ₹60-70 प्रति किलो' },
+  jaggery: { price: 65, unit: 'kg', category: 'kirana', notes: 'Organic Jaggery ₹60-70 per kg' },
   तांदूळ: { price: 55, unit: 'kg', category: 'grains', notes: 'इंद्रायणी तांदूळ ₹50-60 प्रति किलो' },
   rice: { price: 55, unit: 'kg', category: 'grains', notes: 'Indrayani Rice ₹50-60 per kg' },
   तूप: { price: 780, unit: 'liter', category: 'dairy', notes: 'शुद्ध गावठी गाईचे तूप ₹750-850 प्रति लिटर' },
@@ -140,7 +140,10 @@ JSON Structure:
           const parsed = JSON.parse(jsonMatch[1]);
           return {
             replyText: parsed.replyText || rawContent.replace(/```json[\s\S]*```/, '').trim(),
-            suggestedQuickReplies: parsed.suggestedQuickReplies || ['होय, योग्य आहे', 'भाव बदला'],
+            suggestedQuickReplies: parsed.suggestedQuickReplies || [
+              translate(language, 'agent.fallbackQuickOk'),
+              translate(language, 'agentModal.quickChangePrice'),
+            ],
             productDraft: { ...currentDraft, ...(parsed.productDraft || {}) },
           };
         } catch {

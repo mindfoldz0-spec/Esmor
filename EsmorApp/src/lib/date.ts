@@ -85,7 +85,12 @@ function toDate(value: Date | string) {
  * Formats the date shown under the home greeting, for example "25 Nov".
  */
 export function formatTodayDate(language: Language, date: Date = new Date()) {
-  return `${date.getDate()} ${SHORT_MONTHS[language][date.getMonth()]}`;
+  const safeDate = toDate(date);
+  if (Number.isNaN(safeDate.getTime())) {
+    return '';
+  }
+  const months = SHORT_MONTHS[language] ?? SHORT_MONTHS.en;
+  return `${safeDate.getDate()} ${months[safeDate.getMonth()]}`;
 }
 
 /**
@@ -114,5 +119,6 @@ export function formatMonthYear(language: Language, value: Date | string) {
     return '';
   }
 
-  return `${LONG_MONTHS[language][date.getMonth()]} ${date.getFullYear()}`;
+  const months = LONG_MONTHS[language] ?? LONG_MONTHS.en;
+  return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }

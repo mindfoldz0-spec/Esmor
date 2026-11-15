@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global __dirname, Buffer */
 /**
  * One-time migration: converts src/constants/pregenerated-voices.json
  * (base64 WAVs embedded in the JS bundle) into individual binary assets

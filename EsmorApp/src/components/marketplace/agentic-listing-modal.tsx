@@ -104,9 +104,12 @@ function AgenticListingContent({
     };
   }, []);
 
-  // Play spoken greeting when agent mounts
+  // Play spoken greeting when agent mounts, and ensure voice is stopped on unmount
   useEffect(() => {
     speakPrompt('agent_welcome', language, t('agentModal.greeting')).catch(() => {});
+    return () => {
+      stopVoice().catch(() => {});
+    };
   }, [language, t]);
 
   const handleToggleListening = async () => {
@@ -222,11 +225,18 @@ function AgenticListingContent({
     const text = textToSend.trim();
     if (!text || isProcessing) return;
 
-    if (text === '📷 फोटो काढा' || text === 'Take Photo') {
+    const isCameraAction =
+      /📷|camera|कॅमेरा|कैमरा|take photo|फोटो काढा|फ़ोटो लें|फोटो लें|फोटो खींचो|फ़ोटो खींचो/i.test(text) ||
+      text === t('agentModal.takePhoto');
+    if (isCameraAction) {
       await handleTakePhoto();
       return;
     }
-    if (text === '🖼️ फोटो अपलोड करा' || text === 'Upload Photo' || text === 'गॅलरीतून फोटो निवडा') {
+
+    const isGalleryAction =
+      /🖼️|gallery|गॅलरी|गैलरी|upload photo|फोटो अपलोड|फ़ोटो अपलोड|गॅलरीतून|गैलरी से|निवडा|चुनें/i.test(text) ||
+      text === t('agentModal.uploadPhoto');
+    if (isGalleryAction) {
       await handlePickImage();
       return;
     }
@@ -307,7 +317,7 @@ function AgenticListingContent({
         sellerId: profile?.phone || 'seller-me',
         sellerName: profile?.name || t('agentModal.defaultSellerName'),
         sellerPhone: profile?.phone || '+91 98220 12345',
-        sellerVillage: profile?.location.label || t('agentModal.defaultSellerVillage'),
+        sellerVillage: profile?.location?.label || t('agentModal.defaultSellerVillage'),
         district: 'Maharashtra',
         description: draft.description || t('agentModal.defaultDescription', { title: draft.title }),
         isOrganic: true,

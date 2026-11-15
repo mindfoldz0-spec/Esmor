@@ -29,7 +29,8 @@ export async function getAllMarketplaceOrders(): Promise<MarketplaceOrder[]> {
 
 export async function addMarketplaceProduct(product: MarketplaceProduct): Promise<void> {
   const customProducts = readJsonArray<MarketplaceProduct>(PRODUCTS_KEY);
-  writeJsonArray(PRODUCTS_KEY, [product, ...customProducts]);
+  const remaining = customProducts.filter((p) => p.id !== product.id);
+  writeJsonArray(PRODUCTS_KEY, [product, ...remaining]);
 }
 
 export async function createMarketplaceOrder(order: MarketplaceOrder): Promise<void> {

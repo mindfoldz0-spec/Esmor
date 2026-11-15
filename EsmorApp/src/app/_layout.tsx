@@ -1,4 +1,4 @@
-import { DefaultTheme, Stack, ThemeProvider, useRouter, type Href } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -18,14 +18,15 @@ SplashScreen.preventAutoHideAsync();
 
 /**
  * A notification can carry a route in its data payload. When the user taps
- * it, the app opens that screen.
+ * it, the app opens that screen once app data is ready and the navigator is mounted.
  */
 function NotificationRouteListener() {
   const router = useRouter();
   const { pendingRoute, consumePendingRoute } = useNotifications();
+  const { ready, profile } = useAppData();
 
   useEffect(() => {
-    if (!pendingRoute) {
+    if (!ready || !pendingRoute) {
       return;
     }
 
@@ -35,9 +36,48 @@ function NotificationRouteListener() {
       return;
     }
 
+    // If the user has no profile yet, do not navigate to protected screens
+    const isProtected = !pendingRoute.startsWith('/(onboarding)') && pendingRoute !== '/language';
+    if (!profile && isProtected) {
+      consumePendingRoute();
+      return;
+    }
+
+    const targetRoute = pendingRoute;
     consumePendingRoute();
-    router.push(pendingRoute as Href);
-  }, [pendingRoute, consumePendingRoute, router]);
+
+    // Defer navigation slightly so the root layout and navigator are fully mounted
+    const timer = setTimeout(() => {
+      router.push(targetRoute as Href);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [ready, profile, pendingRoute, consumePendingRoute, router]);
+
+  return null;
+}
+
+/**
+ * Ensures a cold-launch without a profile cleanly redirects to the onboarding
+ * flow instead of landing on Expo Router's unmatched route screen.
+ */
+function AuthProtectionListener() {
+  const { ready, profile } = useAppData();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    const inOnboarding = segments[0] === '(onboarding)';
+
+    // If no profile and not currently inside onboarding flow, redirect to language selection
+    if (!profile && !inOnboarding) {
+      router.replace('/(onboarding)/language' as Href);
+    }
+  }, [ready, profile, segments, router]);
 
   return null;
 }
@@ -53,6 +93,7 @@ function RootNavigator() {
 
   return (
     <Stack
+      initialRouteName={profile ? '(tabs)' : '(onboarding)'}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: Brand.background },
@@ -80,6 +121,7 @@ export default function RootLayout() {
             <ThemeProvider value={DefaultTheme}>
               <AnimatedSplashOverlay />
               <StatusBar style="dark" />
+              <AuthProtectionListener />
               <NotificationRouteListener />
               <RootNavigator />
             </ThemeProvider>

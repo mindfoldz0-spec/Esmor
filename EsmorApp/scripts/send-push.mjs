@@ -45,7 +45,7 @@ const args = parseArgs(process.argv.slice(2));
 
 const title = typeof args.title === 'string' ? args.title : 'Esmor';
 const body = typeof args.body === 'string' ? args.body : '';
-const channelId = typeof args.channel === 'string' ? args.channel : undefined;
+const channelId = typeof args.channel === 'string' ? args.channel : 'esmor-default';
 const priority = typeof args.priority === 'string' ? args.priority : undefined;
 const sound = typeof args.sound === 'string' ? args.sound : undefined;
 const ttl = typeof args.ttl === 'string' ? Number(args.ttl) : undefined;

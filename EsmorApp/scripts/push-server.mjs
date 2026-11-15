@@ -45,10 +45,18 @@ function json(response, status, payload) {
   response.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   });
   response.end(JSON.stringify(payload, null, 2));
+}
+
+let tokenLock = Promise.resolve();
+
+async function withTokenLock(action) {
+  const next = tokenLock.then(action, action);
+  tokenLock = next.catch(() => {});
+  return next;
 }
 
 async function readJsonBody(request) {
@@ -82,96 +90,114 @@ function lanAddress() {
 }
 
 const server = createServer(async (request, response) => {
-  const url = new URL(request.url ?? '/', `http://localhost:${PORT}`);
+  try {
+    const url = new URL(request.url ?? '/', `http://localhost:${PORT}`);
 
-  if (request.method === 'OPTIONS') {
-    json(response, 204, {});
-    return;
-  }
-
-  const protectedPaths = ['/register', '/tokens', '/send'];
-  if (protectedPaths.includes(url.pathname) && !isAuthorized(request)) {
-    json(response, 401, { error: 'Unauthorized. Provide Authorization: Bearer <token>.' });
-    return;
-  }
-
-  if (request.method === 'GET' && url.pathname === '/') {
-    json(response, 200, {
-      name: 'Esmor notification server',
-      endpoints: {
-        'GET /tokens': 'List the registered devices',
-        'POST /register': 'Register a device push token',
-        'POST /send': 'Send a notification to every registered device',
-      },
-      example: {
-        title: 'Hello',
-        body: 'This came from the notification server.',
-        data: { url: '/profile' },
-      },
-    });
-    return;
-  }
-
-  if (request.method === 'GET' && url.pathname === '/tokens') {
-    const tokens = await readTokens();
-    json(response, 200, { count: tokens.length, tokens });
-    return;
-  }
-
-  if (request.method === 'POST' && url.pathname === '/register') {
-    const body = await readJsonBody(request);
-
-    if (!body?.token || typeof body.token !== 'string') {
-      json(response, 400, { error: 'A push token is required.' });
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      });
+      response.end();
       return;
     }
 
-    const tokens = await readTokens();
-    upsertToken(tokens, {
-      token: body.token,
-      platform: body.platform ?? 'unknown',
-      projectId: body.projectId ?? null,
-      registeredAt: body.registeredAt ?? new Date().toISOString(),
-    });
-
-    await writeTokens(tokens);
-    json(response, 200, { registered: true, count: tokens.length });
-    return;
-  }
-
-  if (request.method === 'POST' && url.pathname === '/send') {
-    const body = await readJsonBody(request);
-    const tokens = await readTokens();
-
-    if (!tokens.length) {
-      json(response, 400, { error: 'No devices are registered yet.' });
+    const protectedPaths = ['/register', '/tokens', '/send'];
+    if (protectedPaths.includes(url.pathname) && !isAuthorized(request)) {
+      json(response, 401, { error: 'Unauthorized. Provide Authorization: Bearer <token>.' });
       return;
     }
 
-    const messages = buildMessages(tokens, {
-      title: body.title ?? 'Esmor',
-      body: body.body ?? '',
-      subtitle: body.subtitle,
-      data: body.data,
-      channelId: body.channelId,
-      badge: body.badge,
-      sound: body.sound,
-      ttl: body.ttl,
-      priority: body.priority,
-    });
-
-    const tickets = [];
-
-    for (const batch of chunk(messages)) {
-      const result = await sendMessages(batch, { accessToken: ACCESS_TOKEN });
-      tickets.push(...(result.data ?? []));
+    if (request.method === 'GET' && url.pathname === '/') {
+      json(response, 200, {
+        name: 'Esmor notification server',
+        endpoints: {
+          'GET /tokens': 'List the registered devices',
+          'POST /register': 'Register a device push token',
+          'POST /send': 'Send a notification to every registered device',
+        },
+        example: {
+          title: 'Hello',
+          body: 'This came from the notification server.',
+          data: { url: '/profile' },
+        },
+      });
+      return;
     }
 
-    json(response, 200, { sent: messages.length, tickets });
-    return;
-  }
+    if (request.method === 'GET' && url.pathname === '/tokens') {
+      const tokens = await readTokens();
+      json(response, 200, { count: tokens.length, tokens });
+      return;
+    }
 
-  json(response, 404, { error: 'Unknown endpoint.' });
+    if (request.method === 'POST' && url.pathname === '/register') {
+      const body = await readJsonBody(request);
+
+      if (!body?.token || typeof body.token !== 'string') {
+        json(response, 400, { error: 'A push token is required.' });
+        return;
+      }
+
+      const count = await withTokenLock(async () => {
+        const tokens = await readTokens();
+        upsertToken(tokens, {
+          token: body.token,
+          platform: body.platform ?? 'unknown',
+          projectId: body.projectId ?? null,
+          registeredAt: body.registeredAt ?? new Date().toISOString(),
+        });
+
+        await writeTokens(tokens);
+        return tokens.length;
+      });
+
+      json(response, 200, { registered: true, count });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/send') {
+      const body = await readJsonBody(request);
+      const tokens = await readTokens();
+
+      if (!tokens.length) {
+        json(response, 400, { error: 'No devices are registered yet.' });
+        return;
+      }
+
+      const messages = buildMessages(tokens, {
+        title: body.title ?? 'Esmor',
+        body: body.body ?? '',
+        subtitle: body.subtitle,
+        data: body.data,
+        channelId: body.channelId,
+        badge: body.badge,
+        sound: body.sound,
+        ttl: body.ttl,
+        priority: body.priority,
+      });
+
+      const tickets = [];
+
+      for (const batch of chunk(messages)) {
+        const result = await sendMessages(batch, { accessToken: ACCESS_TOKEN });
+        tickets.push(...(result.data ?? []));
+      }
+
+      json(response, 200, { sent: messages.length, tickets });
+      return;
+    }
+
+    json(response, 404, { error: 'Unknown endpoint.' });
+  } catch (error) {
+    console.error('Unhandled request error in push server:', error);
+    try {
+      json(response, 500, { error: 'Internal server error', details: error?.message });
+    } catch {
+      // response might already be closed
+    }
+  }
 });
 
 server.listen(PORT, '0.0.0.0', () => {

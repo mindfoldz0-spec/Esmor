@@ -52,7 +52,11 @@ function writeState(state: StoredState) {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.warn('Could not write notification state to localStorage:', err);
+  }
 }
 
 function isLogKind(value: string): value is NotificationLogKind {

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,7 +44,9 @@ export async function readTokens(file = TOKENS_FILE) {
 }
 
 export async function writeTokens(tokens, file = TOKENS_FILE) {
-  await writeFile(file, `${JSON.stringify(tokens, null, 2)}\n`, 'utf8');
+  const tmpFile = `${file}.tmp.${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  await writeFile(tmpFile, `${JSON.stringify(tokens, null, 2)}\n`, 'utf8');
+  await rename(tmpFile, file);
 }
 
 export function upsertToken(tokens, entry) {

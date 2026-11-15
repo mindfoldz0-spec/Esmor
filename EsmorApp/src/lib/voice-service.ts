@@ -90,7 +90,7 @@ export async function getVoiceSource(
         },
         body: JSON.stringify({
           text: fallbackText,
-          language_code: langCode,
+          target_language_code: langCode,
           model: 'bulbul:v4-flash',
         }),
       },

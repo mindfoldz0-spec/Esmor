@@ -60,7 +60,14 @@ function readStoredProfile(): Profile | null {
 }
 
 function writeStoredProfile(profile: Profile) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  } catch (err) {
+    console.warn('Could not write profile to localStorage:', err);
+  }
 }
 
 export async function getProfile(): Promise<Profile | null> {

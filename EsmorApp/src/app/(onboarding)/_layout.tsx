@@ -7,6 +7,7 @@ export default function OnboardingLayout() {
   return (
     <OnboardingProvider>
       <Stack
+        initialRouteName="language"
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: Brand.background },
