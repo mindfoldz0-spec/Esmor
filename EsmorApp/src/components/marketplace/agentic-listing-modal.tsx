@@ -95,12 +95,13 @@ function AgenticListingContent({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [liveSpokenText, setLiveSpokenText] = useState('');
 
-  // Setup STT controller
+  // Setup STT controller and ensure cleanup on unmount
   useEffect(() => {
     const controller = new SpeechToTextController();
     sttControllerRef.current = controller;
     return () => {
       controller.cancel();
+      stopVoice().catch(() => {});
     };
   }, []);
 
@@ -126,26 +127,51 @@ function AgenticListingContent({
         if (finalText) {
           await handleSendMessage(finalText);
         } else {
-          setInputText(t('agentModal.couldNotHear'));
+          const hasSttApiKey = Boolean(
+            process.env.EXPO_PUBLIC_GROQ_API_KEY ||
+            process.env.EXPO_PUBLIC_SARVAM_API_KEY ||
+            process.env.groq_api ||
+            process.env.sarvam_api
+          );
+          if (!hasSttApiKey) {
+            const missingKeyText =
+              language === 'mr'
+                ? 'व्हॉइस API की (Groq/Sarvam) उपलब्ध नाही.'
+                : language === 'hi'
+                  ? 'वॉइस API की (Groq/Sarvam) उपलब्ध नहीं है।'
+                  : 'Voice API key (Groq/Sarvam) is missing.';
+            setInputText(missingKeyText);
+          } else {
+            setInputText(t('agentModal.couldNotHear'));
+          }
         }
       } catch (err) {
         setIsTranscribing(false);
+        setIsListening(false);
         console.warn('STT stop listening error:', err);
+        setInputText(t('agentModal.couldNotHear'));
       }
     } else {
       await stopVoice();
       setLiveSpokenText('');
       setInputText('');
-      const started = await sttControllerRef.current?.startListening(
-        language,
-        (liveText) => {
-          setLiveSpokenText(liveText);
-          setInputText(liveText);
+      try {
+        const started = await sttControllerRef.current?.startListening(
+          language,
+          (liveText) => {
+            setLiveSpokenText(liveText);
+            setInputText(liveText);
+          }
+        );
+        if (started) {
+          setIsListening(true);
+        } else {
+          setIsListening(false);
+          setInputText(t('agentModal.micPermissionDenied'));
         }
-      );
-      if (started) {
-        setIsListening(true);
-      } else {
+      } catch (err) {
+        setIsListening(false);
+        console.warn('STT start listening error:', err);
         setInputText(t('agentModal.micPermissionDenied'));
       }
     }
@@ -296,6 +322,14 @@ function AgenticListingContent({
     }
   };
 
+  const handleClose = () => {
+    setIsListening(false);
+    setIsTranscribing(false);
+    sttControllerRef.current?.cancel();
+    stopVoice().catch(() => {});
+    onClose();
+  };
+
   const handlePublish = async () => {
     if (!draft.title || !draft.price || !draft.quantity) {
       setPublishError(t('agentModal.publishError'));
@@ -330,7 +364,7 @@ function AgenticListingContent({
       const congrats = t('agentModal.congratsPublish', { title: draft.title });
 
       await speakPrompt(contentVoiceKey('agent_congrats', congrats), language, congrats);
-      onClose();
+      handleClose();
     } catch (err) {
       console.error('Failed to publish product:', err);
       setPublishError(t('agentModal.publishError'));
@@ -344,7 +378,7 @@ function AgenticListingContent({
       visible={visible}
       animationType="slide"
       transparent
-      onRequestClose={onClose}>
+      onRequestClose={handleClose}>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -362,7 +396,7 @@ function AgenticListingContent({
             </View>
 
             <Pressable
-              onPress={onClose}
+              onPress={handleClose}
               style={styles.closeBtn}
               accessibilityRole="button"
               accessibilityLabel="Close agent">

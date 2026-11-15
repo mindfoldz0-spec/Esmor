@@ -6,8 +6,8 @@ dist
 web-build
 *.log
 
-# Never upload local secrets into the EAS build archive
-.env
+# Allow local .env with EXPO_PUBLIC_* keys to be bundled by EAS build
+# (git ignores .env so it never touches version control)
 .env.local
 .env*.local
 .env.example

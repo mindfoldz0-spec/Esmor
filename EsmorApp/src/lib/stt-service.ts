@@ -5,6 +5,7 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Language } from '@/i18n/languages';
 import { fetchWithTimeout } from '@/lib/net';
 
@@ -17,6 +18,10 @@ const SARVAM_API_KEY =
   process.env.EXPO_PUBLIC_SARVAM_API_KEY ||
   process.env.sarvam_api ||
   '';
+
+export function hasSttApiKey(): boolean {
+  return Boolean(GROQ_API_KEY || SARVAM_API_KEY);
+}
 
 // Vocabulary hint per language so Whisper's transcription doesn't drift into the other script.
 const STT_PROMPT: Record<Language, string> = {
@@ -33,6 +38,11 @@ export async function transcribeAudioBlob(
   audioBlob: Blob,
   language: Language
 ): Promise<string> {
+  if (!hasSttApiKey()) {
+    console.warn('Neither Groq nor Sarvam API key is configured. STT transcription cannot run.');
+    return '';
+  }
+
   const langCode = language === 'mr' ? 'mr' : language === 'hi' ? 'hi' : 'en';
 
   // 1. Try Groq Whisper API (Lightning-fast ~0.3s)
@@ -112,13 +122,33 @@ export async function transcribeNativeAudioFile(
   fileUri: string,
   language: Language
 ): Promise<string> {
+  if (!hasSttApiKey()) {
+    console.warn('Neither Groq nor Sarvam API key is configured. STT transcription cannot run.');
+    return '';
+  }
+
+  // Normalize URI to file:// scheme for React Native FormData
+  const normalizedUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(normalizedUri);
+    if (!fileInfo.exists || (fileInfo.size !== undefined && fileInfo.size < 500)) {
+      console.warn(
+        `Audio recording file missing or too small (${fileInfo.exists ? fileInfo.size : 0} bytes): ${normalizedUri}`
+      );
+      return '';
+    }
+  } catch (err) {
+    console.warn('Failed to verify recorded audio file info:', err);
+  }
+
   const langCode = language === 'mr' ? 'mr' : language === 'hi' ? 'hi' : 'en';
 
   if (GROQ_API_KEY) {
     try {
       const groqFormData = new FormData();
       groqFormData.append('file', {
-        uri: fileUri,
+        uri: normalizedUri,
         name: 'recording.m4a',
         type: 'audio/m4a',
       } as unknown as Blob);
@@ -152,7 +182,7 @@ export async function transcribeNativeAudioFile(
     try {
       const sarvamFormData = new FormData();
       sarvamFormData.append('file', {
-        uri: fileUri,
+        uri: normalizedUri,
         name: 'recording.m4a',
         type: 'audio/m4a',
       } as unknown as Blob);
@@ -201,12 +231,16 @@ export class SpeechToTextController {
     uri: string | null;
     record(): void;
     stop(): Promise<void>;
-    prepareToRecordAsync(): Promise<void>;
+    prepareToRecordAsync(options?: any): Promise<void>;
     getStatus(): { url: string | null };
   } | null = null;
   private isListening = false;
   private isStarting = false;
   private startGeneration = 0;
+
+  hasApiKey(): boolean {
+    return hasSttApiKey();
+  }
 
   async startListening(
     language: Language,
@@ -318,9 +352,17 @@ export class SpeechToTextController {
           }
 
           // High-quality AAC (m4a) so Whisper transcribes rural speech accurately.
+          // In expo-audio on Android, MediaRecorder requires outputFormat and audioEncoder
+          // to be flattened at top-level options, or passed to prepareToRecordAsync(options)
+          // where createRecordingOptions flattens platform-specific options.
+          const recordingOptions: any = {
+            ...RecordingPresets.HIGH_QUALITY,
+            ...(Platform.OS === 'android' ? RecordingPresets.HIGH_QUALITY.android : {}),
+            ...(Platform.OS === 'ios' ? RecordingPresets.HIGH_QUALITY.ios : {}),
+          };
           // eslint-disable-next-line import/namespace -- re-exported through the package's default-class chain; TS resolves it correctly
-          const recorder = new AudioModule.AudioRecorder({ ...RecordingPresets.HIGH_QUALITY });
-          await recorder.prepareToRecordAsync();
+          const recorder = new AudioModule.AudioRecorder(recordingOptions);
+          await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
           if (generation !== this.startGeneration) {
             try {
               recorder.stop();
