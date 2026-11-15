@@ -5,7 +5,7 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File, UploadType } from 'expo-file-system';
 import type { Language } from '@/i18n/languages';
 import { fetchWithTimeout } from '@/lib/net';
 
@@ -127,24 +127,60 @@ export async function transcribeNativeAudioFile(
     return '';
   }
 
-  // Normalize URI to file:// scheme for React Native FormData
+  // Normalize URI to file:// scheme for React Native FormData and File instance
   const normalizedUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
 
+  let audioFile: File | null = null;
   try {
-    const fileInfo = await FileSystem.getInfoAsync(normalizedUri);
-    if (!fileInfo.exists || (fileInfo.size !== undefined && fileInfo.size < 500)) {
+    audioFile = new File(normalizedUri);
+    if (!audioFile.exists || (audioFile.size !== undefined && audioFile.size < 500)) {
       console.warn(
-        `Audio recording file missing or too small (${fileInfo.exists ? fileInfo.size : 0} bytes): ${normalizedUri}`
+        `Audio recording file missing or too small (${audioFile.exists ? audioFile.size : 0} bytes): ${normalizedUri}`
       );
       return '';
     }
-  } catch (err) {
-    console.warn('Failed to verify recorded audio file info:', err);
+  } catch (fileErr) {
+    console.warn('Failed to inspect audio file with expo-file-system File:', fileErr);
   }
 
   const langCode = language === 'mr' ? 'mr' : language === 'hi' ? 'hi' : 'en';
 
   if (GROQ_API_KEY) {
+    // 1. Primary: Native OkHttp multipart upload using expo-file-system File
+    if (audioFile) {
+      try {
+        const uploadRes = await audioFile.upload(
+          'https://api.groq.com/openai/v1/audio/transcriptions',
+          {
+            uploadType: UploadType.MULTIPART,
+            fieldName: 'file',
+            mimeType: 'audio/m4a',
+            headers: {
+              Authorization: `Bearer ${GROQ_API_KEY}`,
+            },
+            parameters: {
+              model: 'whisper-large-v3-turbo',
+              language: langCode,
+              prompt: STT_PROMPT[language] ?? STT_PROMPT.hi,
+            },
+          }
+        );
+
+        if (uploadRes.status >= 200 && uploadRes.status < 300) {
+          const data = JSON.parse(uploadRes.body);
+          const text = (data.text || '').trim();
+          if (text) {
+            return text;
+          }
+        } else {
+          console.warn('Groq Native STT upload returned status', uploadRes.status, uploadRes.body);
+        }
+      } catch (err) {
+        console.warn('Groq Native file.upload failed, trying fetch fallback:', err);
+      }
+    }
+
+    // 2. Secondary fallback: React Native fetch with FormData
     try {
       const groqFormData = new FormData();
       groqFormData.append('file', {
@@ -156,15 +192,17 @@ export async function transcribeNativeAudioFile(
       groqFormData.append('language', langCode);
       groqFormData.append('prompt', STT_PROMPT[language] ?? STT_PROMPT.hi);
 
-      const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
+      const res = await fetchWithTimeout(
+        'https://api.groq.com/openai/v1/audio/transcriptions',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${GROQ_API_KEY}`,
+          },
+          body: groqFormData,
         },
-        body: groqFormData,
-      },
-      20000
-    );
+        20000
+      );
 
       if (res.ok) {
         const data = await res.json();
@@ -172,13 +210,52 @@ export async function transcribeNativeAudioFile(
         if (text) {
           return text;
         }
+      } else {
+        const errText = await res.text();
+        console.warn('Groq Native STT fetch returned status', res.status, errText);
       }
     } catch (err) {
-      console.warn('Groq Native STT failed:', err);
+      console.warn('Groq Native STT fetch failed:', err);
     }
   }
 
   if (SARVAM_API_KEY) {
+    const sarvamLangCode = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+
+    // 1. Primary: Native OkHttp multipart upload using expo-file-system File
+    if (audioFile) {
+      try {
+        const sarvamRes = await audioFile.upload(
+          'https://api.sarvam.ai/speech-to-text',
+          {
+            uploadType: UploadType.MULTIPART,
+            fieldName: 'file',
+            mimeType: 'audio/m4a',
+            headers: {
+              'api-subscription-key': SARVAM_API_KEY,
+            },
+            parameters: {
+              model: 'saarika:v2.5',
+              language_code: sarvamLangCode,
+            },
+          }
+        );
+
+        if (sarvamRes.status >= 200 && sarvamRes.status < 300) {
+          const data = JSON.parse(sarvamRes.body);
+          const transcript = (data.transcript || '').trim();
+          if (transcript) {
+            return transcript;
+          }
+        } else {
+          console.warn('Sarvam Native STT upload returned status', sarvamRes.status, sarvamRes.body);
+        }
+      } catch (err) {
+        console.warn('Sarvam Native file.upload failed, trying fetch fallback:', err);
+      }
+    }
+
+    // 2. Secondary fallback: React Native fetch with FormData
     try {
       const sarvamFormData = new FormData();
       sarvamFormData.append('file', {
@@ -187,20 +264,19 @@ export async function transcribeNativeAudioFile(
         type: 'audio/m4a',
       } as unknown as Blob);
       sarvamFormData.append('model', 'saarika:v2.5');
-      sarvamFormData.append(
-        'language_code',
-        language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN'
-      );
+      sarvamFormData.append('language_code', sarvamLangCode);
 
-      const res = await fetchWithTimeout('https://api.sarvam.ai/speech-to-text', {
-        method: 'POST',
-        headers: {
-          'api-subscription-key': SARVAM_API_KEY,
+      const res = await fetchWithTimeout(
+        'https://api.sarvam.ai/speech-to-text',
+        {
+          method: 'POST',
+          headers: {
+            'api-subscription-key': SARVAM_API_KEY,
+          },
+          body: sarvamFormData,
         },
-        body: sarvamFormData,
-      },
-      20000
-    );
+        20000
+      );
 
       if (res.ok) {
         const data = await res.json();
@@ -208,9 +284,12 @@ export async function transcribeNativeAudioFile(
         if (transcript) {
           return transcript;
         }
+      } else {
+        const errText = await res.text();
+        console.warn('Sarvam Native STT fetch returned status', res.status, errText);
       }
     } catch (err) {
-      console.warn('Sarvam Native STT failed:', err);
+      console.warn('Sarvam Native STT fetch failed:', err);
     }
   }
 
@@ -230,7 +309,7 @@ export class SpeechToTextController {
   private recorder: {
     uri: string | null;
     record(): void;
-    stop(): Promise<void>;
+    stop(): Promise<any>;
     prepareToRecordAsync(options?: any): Promise<void>;
     getStatus(): { url: string | null };
   } | null = null;
@@ -470,8 +549,10 @@ export class SpeechToTextController {
         return '';
       }
 
+      const preUri = recorder.uri;
+      let stopStatus: any = null;
       try {
-        await recorder.stop();
+        stopStatus = await recorder.stop();
       } catch (err) {
         console.warn('Failed to stop the native recording:', err);
       } finally {
@@ -479,7 +560,7 @@ export class SpeechToTextController {
         setAudioModeAsync({ allowsRecording: false }).catch(() => {});
       }
 
-      const uri = recorder.uri ?? recorder.getStatus()?.url ?? null;
+      const uri = (stopStatus?.url || preUri || recorder.uri || recorder.getStatus()?.url || '').trim();
       if (!uri) {
         return '';
       }
